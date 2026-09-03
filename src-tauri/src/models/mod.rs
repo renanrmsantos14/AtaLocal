@@ -17,6 +17,22 @@ use crate::paths::AppPaths;
 pub mod catalog;
 use catalog::{ModelDef, ModelKind};
 
+/// RAM total livre no sistema, em MB.
+pub fn available_ram_mb() -> u64 {
+    let mut sys = sysinfo::System::new();
+    sys.refresh_memory();
+    sys.available_memory() / 1024 / 1024
+}
+
+/// id do modelo de transcricao que o app recomenda nesta maquina.
+pub fn recommended_whisper_id() -> &'static str {
+    catalog::whisper_options(available_ram_mb())
+        .into_iter()
+        .find(|o| o.recommended)
+        .map(|o| o.id)
+        .unwrap_or("whisper-small-q5_1")
+}
+
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelStatus {

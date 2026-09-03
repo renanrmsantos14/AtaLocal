@@ -9,6 +9,7 @@ import type {
   TranscriptSegment,
   MeetingSummary,
   StoredActionItem,
+  WhisperOption,
 } from "./types";
 
 export const api = {
@@ -18,6 +19,7 @@ export const api = {
 
   models: {
     list: () => invoke<ModelInfo[]>("list_models"),
+    whisperOptions: () => invoke<WhisperOption[]>("whisper_options"),
     download: (modelId: string) =>
       invoke<void>("download_model", { modelId }),
     cancelDownload: (modelId: string) =>

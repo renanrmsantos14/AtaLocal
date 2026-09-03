@@ -20,6 +20,7 @@ const KIND_LABEL: Record<ModelInfo["kind"], string> = {
   diarization: "Segmentação de vozes",
   embedding: "Impressão de voz",
   llm: "Resumo / ata",
+  tool: "Programa auxiliar",
 };
 
 export function ModelsView() {

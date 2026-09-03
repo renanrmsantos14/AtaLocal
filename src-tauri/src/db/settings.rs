@@ -19,8 +19,8 @@ impl AppSettings {
     fn defaults(paths: &AppPaths) -> Self {
         Self {
             input_device: None,
-            // Padrao de seguranca definido no plano.
-            whisper_model: "large-v3-turbo-q5_0".to_string(),
+            // Vazio = o app recomenda um modelo com base na RAM na 1a execucao.
+            whisper_model: String::new(),
             retention_days: None,
             data_dir: paths.data_dir.to_string_lossy().into_owned(),
             models_dir: paths.models_dir.to_string_lossy().into_owned(),

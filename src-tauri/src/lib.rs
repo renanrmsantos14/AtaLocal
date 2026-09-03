@@ -178,6 +178,12 @@ fn list_models(state: State<'_, AppState>) -> AppResult<Vec<ModelInfo>> {
     state.models.list()
 }
 
+/// Modelos de transcricao com caracteristicas e recomendacao para esta maquina.
+#[tauri::command]
+fn whisper_options() -> Vec<models::catalog::WhisperOption> {
+    models::catalog::whisper_options(models::available_ram_mb())
+}
+
 #[tauri::command]
 async fn download_model(
     app: tauri::AppHandle,
@@ -379,6 +385,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             run_diagnostics,
             list_models,
+            whisper_options,
             download_model,
             cancel_model_download,
             verify_model,

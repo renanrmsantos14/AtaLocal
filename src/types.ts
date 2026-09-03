@@ -152,9 +152,26 @@ export type ModelStatus =
   | "corrupt"
   | "failed";
 
+export interface ModelProfile {
+  label: string;
+  ram_mb: number;
+  secs_per_audio_min: number;
+  quality: number;
+  note: string;
+}
+
+export interface WhisperOption {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  profile: ModelProfile;
+  recommended: boolean;
+  warning: string | null;
+}
+
 export interface ModelInfo {
   id: string;
-  kind: "whisper" | "diarization" | "embedding" | "llm";
+  kind: "whisper" | "diarization" | "embedding" | "llm" | "tool";
   filename: string;
   url: string;
   sha256: string;

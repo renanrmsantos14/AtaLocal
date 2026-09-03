@@ -133,10 +133,37 @@ impl Pipeline {
     }
 
     fn whisper_model_path(&self) -> AppResult<PathBuf> {
-        // Usa o large-v3-turbo (padrao de seguranca do plano). Configuravel depois.
-        let def = catalog::find("whisper-large-v3-turbo-q5_0")
-            .ok_or_else(|| AppError::Model("catalogo sem whisper padrao".into()))?;
-        Ok(self.paths.models_dir.join(def.filename))
+        // Modelo escolhido nas configuracoes. Vazio ou invalido -> recomendado
+        // pela RAM. Se nem esse estiver baixado, tenta qualquer whisper presente.
+        let chosen = settings::load(&self.db, &self.paths)
+            .map(|s| s.whisper_model)
+            .unwrap_or_default();
+
+        let candidates: Vec<&str> = {
+            let mut v = Vec::new();
+            if !chosen.is_empty() {
+                v.push(chosen.as_str());
+            }
+            v.push(crate::models::recommended_whisper_id());
+            for m in catalog::CATALOG.iter().filter(|m| {
+                m.kind == catalog::ModelKind::Whisper && m.profile.is_some()
+            }) {
+                v.push(m.id);
+            }
+            v
+        };
+
+        for id in candidates {
+            if let Some(def) = catalog::find(id) {
+                let p = self.paths.models_dir.join(def.filename);
+                if p.exists() {
+                    return Ok(p);
+                }
+            }
+        }
+        Err(AppError::Model(
+            "nenhum modelo de transcricao baixado — escolha um na aba Modelos".into(),
+        ))
     }
 
     fn transcribe(&self, meeting: &meetings::Meeting) -> AppResult<()> {
