@@ -7,6 +7,7 @@
 | Rust | 1.98.1 (rustup) | `winget install Rustlang.Rustup` |
 | MSVC Build Tools | 14.44.35207 | `winget install Microsoft.VisualStudio.2022.BuildTools` (workload VCTools) |
 | CMake | (Kitware) | `winget install Kitware.CMake` |
+| LLVM / libclang | 22.1.8 | `winget install LLVM.LLVM` — `bindgen` do whisper-rs-sys |
 | Node | 24.15.0 | já instalado |
 | WebView2 Runtime | presente | Windows 11 |
 

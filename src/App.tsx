@@ -3,12 +3,14 @@ import { DiagnosticsView } from "./views/DiagnosticsView";
 import { ModelsView } from "./views/ModelsView";
 import { RecordView } from "./views/RecordView";
 import { MeetingsView } from "./views/MeetingsView";
+import { ResultView } from "./views/ResultView";
 
 type Tab = "record" | "meetings" | "models" | "diagnostics";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("record");
   const [meetingsRefresh, setMeetingsRefresh] = useState(0);
+  const [openMeeting, setOpenMeeting] = useState<string | null>(null);
 
   const nav: [Tab, string][] = [
     ["record", "Gravar"],
@@ -17,6 +19,11 @@ export function App() {
     ["diagnostics", "Diagnóstico"],
   ];
 
+  function goToMeeting(id: string) {
+    setOpenMeeting(id);
+    setTab("meetings");
+  }
+
   return (
     <div className="app">
       <nav className="sidebar">
@@ -24,25 +31,50 @@ export function App() {
         {nav.map(([id, label]) => (
           <button
             key={id}
-            className={tab === id ? "active" : ""}
-            onClick={() => setTab(id)}
+            className={tab === id && !openMeeting ? "active" : ""}
+            onClick={() => {
+              setOpenMeeting(null);
+              setTab(id);
+            }}
           >
             {label}
           </button>
         ))}
       </nav>
       <main className="content">
-        {tab === "record" && (
-          <RecordView
-            onFinished={() => {
-              setMeetingsRefresh((n) => n + 1);
-              setTab("meetings");
-            }}
-          />
+        {openMeeting ? (
+          <>
+            <button
+              onClick={() => setOpenMeeting(null)}
+              style={{
+                background: "transparent",
+                border: 0,
+                color: "var(--text-dim)",
+                cursor: "pointer",
+                marginBottom: 12,
+              }}
+            >
+              ← voltar
+            </button>
+            <ResultView meetingId={openMeeting} />
+          </>
+        ) : (
+          <>
+            {tab === "record" && (
+              <RecordView
+                onFinished={(id) => {
+                  setMeetingsRefresh((n) => n + 1);
+                  goToMeeting(id);
+                }}
+              />
+            )}
+            {tab === "meetings" && (
+              <MeetingsView refreshKey={meetingsRefresh} onOpen={goToMeeting} />
+            )}
+            {tab === "models" && <ModelsView />}
+            {tab === "diagnostics" && <DiagnosticsView />}
+          </>
         )}
-        {tab === "meetings" && <MeetingsView refreshKey={meetingsRefresh} />}
-        {tab === "models" && <ModelsView />}
-        {tab === "diagnostics" && <DiagnosticsView />}
       </main>
     </div>
   );

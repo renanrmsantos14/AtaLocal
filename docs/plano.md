@@ -44,15 +44,39 @@ identifying, summarizing, completed, failed, cancelled` — enum `Stage` em
   `failed` recuperável na próxima abertura.
 - Testes: `phase2_audio.rs` (WAV incremental, downsampler 48→16k, WAV→FLAC).
 
+### Transcrição  (FEITO)
+
+- `src-tauri/src/transcribe/mod.rs`: `Transcriber` sobre `whisper-rs` 0.16,
+  backend CPU, idioma pt fixo, `no_speech_thold` p/ VAD de bordas, timestamps
+  por segmento, callback de progresso. Lê áudio de WAV ou FLAC mono 16 kHz.
+- `src-tauri/src/pipeline/mod.rs`: runner retomável. Lê `Stage` do banco,
+  executa, avança. `finalizing → transcribing → diarizing → identifying →
+  summarizing → completed`. Emite `pipeline://progress`.
+- `src-tauri/src/db/segments.rs`: repo de `transcript_segment`, `replace_all`
+  idempotente (retranscrever é seguro).
+- `stop_recording` dispara o pipeline automaticamente numa thread.
+- Comandos: `list_segments`, `process_meeting` (retomar/reprocessar).
+- UI: `ResultView` com abas Transcrição / Ata / Tarefas, progresso ao vivo,
+  "tentar novamente" em falha.
+- **Validado com gravação real**: whisper transcreveu pt-BR corretamente
+  ("Oi, tudo bem? ... teste ... de transcrição ...").
+- Modelos: catálogo com URLs corrigidas (tag do Sherpa tem typo
+  "recongition"), checksums fixados p/ small, large-v3-turbo e segmentação;
+  extração de `.tar.bz2` no downloader (`tar` + `bzip2`).
+
+### Ambiente adicionado
+
+- LLVM 22 (`winget install LLVM.LLVM`) — libclang para o bindgen do
+  whisper-rs-sys. CMake + LLVM no PATH do usuário. `LIBCLANG_PATH` em
+  `src-tauri/.cargo/config.toml`.
+
 ### Pendente na Fase 2
 
-- [ ] Gravação real testada de ponta a ponta pelo microfone
-- [ ] Transcrição (whisper.cpp) — etapa `transcribing`
-- [ ] Diarização (Sherpa-ONNX) — `diarizing`
-- [ ] Identificação de vozes — `identifying`
-- [ ] Resumo (llama.cpp + Qwen3) — `summarizing`
-- [ ] Runner de pipeline retomável ligando as etapas
-- [ ] Tela de resultado (abas Ata / Transcrição / Tarefas)
+- [ ] Diarização real (Sherpa-ONNX) — etapa `diarizing` (hoje é stub)
+- [ ] Identificação de vozes — `identifying` (hoje é stub)
+- [ ] Resumo (llama.cpp + Qwen3) — `summarizing` (hoje é stub)
+- [ ] Bug: reunião gravada antes do modelo fica `failed`; o runner deveria
+      re-tentar sozinho quando o modelo aparece (hoje precisa do botão)
 
 ## Fase 3 — Perfis de voz  (PENDENTE)
 ## Fase 4 — Experiência principal  (PENDENTE)

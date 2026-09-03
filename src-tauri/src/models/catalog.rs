@@ -32,8 +32,8 @@ pub const CATALOG: &[ModelDef] = &[
         kind: ModelKind::Whisper,
         filename: "ggml-small-q5_1.bin",
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin",
-        sha256: "",
-        size_bytes: 190_000_000,
+        sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
+        size_bytes: 190_085_487,
     },
     ModelDef {
         id: "whisper-medium-q5_0",
@@ -41,32 +41,33 @@ pub const CATALOG: &[ModelDef] = &[
         filename: "ggml-medium-q5_0.bin",
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin",
         sha256: "",
-        size_bytes: 539_000_000,
+        size_bytes: 539_212_467,
     },
     ModelDef {
         id: "whisper-large-v3-turbo-q5_0",
         kind: ModelKind::Whisper,
         filename: "ggml-large-v3-turbo-q5_0.bin",
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
-        sha256: "",
-        size_bytes: 574_000_000,
+        sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+        size_bytes: 574_041_195,
     },
     // ---- Diarizacao (Sherpa-ONNX) ----
+    // O tag de release do upstream tem um typo: "speaker-recongition-models".
     ModelDef {
         id: "sherpa-segmentation-pyannote",
         kind: ModelKind::Diarization,
-        filename: "sherpa-onnx-pyannote-segmentation-3-0.onnx",
+        filename: "sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
         url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
-        sha256: "",
-        size_bytes: 6_000_000,
+        sha256: "24615ee884c897d9d2ba09bb4d30da6bb1b15e685065962db5b02e76e4996488",
+        size_bytes: 6_958_444,
     },
     ModelDef {
-        id: "sherpa-speaker-embedding-3dspeaker",
+        id: "sherpa-speaker-embedding-campplus",
         kind: ModelKind::Embedding,
-        filename: "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
-        url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recognition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+        filename: "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+        url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
         sha256: "",
-        size_bytes: 38_000_000,
+        size_bytes: 28_281_164,
     },
     // ---- Resumo (llama.cpp) ----
     ModelDef {
@@ -75,7 +76,7 @@ pub const CATALOG: &[ModelDef] = &[
         filename: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
         url: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
         sha256: "",
-        size_bytes: 2_500_000_000,
+        size_bytes: 2_497_281_120,
     },
 ];
 

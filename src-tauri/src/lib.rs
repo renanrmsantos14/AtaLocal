@@ -4,7 +4,9 @@ mod diagnostics;
 mod error;
 mod models;
 mod paths;
+mod pipeline;
 mod session;
+mod transcribe;
 
 /// Superficie minima para testes de integracao. Nao usar em runtime.
 pub mod testing {
@@ -80,8 +82,10 @@ use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
 
 use crate::db::meetings::{self, Meeting};
+use crate::db::segments::{self, TranscriptSegment};
 use crate::db::settings::{self, AppSettings, SettingsPatch};
 use crate::db::Db;
+use crate::pipeline::Pipeline;
 use crate::diagnostics::SystemDiagnostics;
 use crate::error::AppResult;
 use crate::models::{ModelInfo, ModelManager};
@@ -169,8 +173,23 @@ fn start_recording(
 }
 
 #[tauri::command]
-fn stop_recording(state: State<'_, AppState>) -> AppResult<String> {
-    state.session.stop()
+fn stop_recording(app: tauri::AppHandle, state: State<'_, AppState>) -> AppResult<String> {
+    let meeting_id = state.session.stop()?;
+    // Dispara o processamento em seguida (transcricao -> ...).
+    let pipeline = Arc::new(Pipeline::new(
+        state.db.clone(),
+        state.paths.clone(),
+        app.clone(),
+    ));
+    let id = meeting_id.clone();
+    let _ = std::thread::Builder::new()
+        .name("atalocal-pipeline".into())
+        .spawn(move || {
+            if let Err(e) = pipeline.run(id.clone()) {
+                tracing::error!(meeting = %id, "pipeline falhou: {e}");
+            }
+        });
+    Ok(meeting_id)
 }
 
 #[tauri::command]
@@ -196,6 +215,37 @@ fn get_meeting(state: State<'_, AppState>, meeting_id: String) -> AppResult<Meet
 #[tauri::command]
 fn delete_meeting(state: State<'_, AppState>, meeting_id: String) -> AppResult<()> {
     meetings::delete(&state.db, &meeting_id)
+}
+
+#[tauri::command]
+fn list_segments(
+    state: State<'_, AppState>,
+    meeting_id: String,
+) -> AppResult<Vec<TranscriptSegment>> {
+    segments::list(&state.db, &meeting_id)
+}
+
+/// Inicia (ou retoma) o processamento de uma reuniao numa thread dedicada.
+#[tauri::command]
+fn process_meeting(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    meeting_id: String,
+) -> AppResult<()> {
+    let pipeline = Arc::new(Pipeline::new(
+        state.db.clone(),
+        state.paths.clone(),
+        app.clone(),
+    ));
+    std::thread::Builder::new()
+        .name("atalocal-pipeline".into())
+        .spawn(move || {
+            if let Err(e) = pipeline.run(meeting_id.clone()) {
+                tracing::error!(meeting = %meeting_id, "pipeline falhou: {e}");
+            }
+        })
+        .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
+    Ok(())
 }
 
 pub fn run() {
@@ -254,6 +304,8 @@ pub fn run() {
             list_meetings,
             get_meeting,
             delete_meeting,
+            list_segments,
+            process_meeting,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o AtaLocal");

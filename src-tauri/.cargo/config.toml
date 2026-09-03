@@ -2,3 +2,11 @@
 # e informativo. Silencia o lint que o transforma em warning de build.
 [build]
 rustflags = ["-A", "linker_messages"]
+
+# whisper-rs-sys usa bindgen, que precisa de libclang (LLVM). Instalado via
+# `winget install LLVM.LLVM`. Ajuste o caminho se o LLVM estiver noutro lugar.
+[env]
+LIBCLANG_PATH = "C:\\Program Files\\LLVM\\bin"
+# CMake e LLVM foram adicionados ao PATH do usuario (winget + setx).
+# Se o build reclamar de "cmake nao instalado", confirme que
+# C:\Program Files\CMake\bin esta no PATH.

@@ -6,6 +6,7 @@ import type {
   AppSettings,
   RecordingState,
   Meeting,
+  TranscriptSegment,
 } from "./types";
 
 export const api = {
@@ -44,10 +45,22 @@ export const api = {
     get: (meetingId: string) => invoke<Meeting>("get_meeting", { meetingId }),
     delete: (meetingId: string) =>
       invoke<void>("delete_meeting", { meetingId }),
+    segments: (meetingId: string) =>
+      invoke<TranscriptSegment[]>("list_segments", { meetingId }),
+    process: (meetingId: string) =>
+      invoke<void>("process_meeting", { meetingId }),
   },
 };
 
 // Nomes de eventos emitidos pelo backend.
 export const events = {
   downloadProgress: "model://download-progress",
+  pipelineProgress: "pipeline://progress",
 } as const;
+
+export interface PipelineProgress {
+  meeting_id: string;
+  stage: string;
+  progress: number;
+  message: string;
+}

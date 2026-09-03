@@ -33,6 +33,14 @@ cpal = "0.15"
 # Codificacao FLAC (sem perda) — encoder 100% Rust, sem dependencia de sistema.
 # Captura escreve WAV incremental; a etapa `finalizing` converte para FLAC.
 flacenc = "0.5"
+# Decodificacao FLAC (leitura, para reprocessar o audio ja gravado)
+claxon = "0.4"
+# Extracao dos modelos do Sherpa, distribuidos em .tar.bz2
+tar = "0.4"
+bzip2 = "0.4"
+
+# Transcricao: bindings do whisper.cpp (compila libwhisper via cmake, backend CPU)
+whisper-rs = "0.16"
 
 # Download de modelos. TLS via Schannel (native-tls) para nao arrastar o crate
 # `ring`, cujo build-script e bloqueado pela politica de seguranca desta maquina.

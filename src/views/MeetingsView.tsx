@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { api } from "../api";
 import type { Meeting } from "../types";
 
@@ -19,7 +19,13 @@ function fmtDur(secs: number) {
   return m < 1 ? `${Math.round(secs)}s` : `${m} min`;
 }
 
-export function MeetingsView({ refreshKey }: { refreshKey: number }) {
+export function MeetingsView({
+  refreshKey,
+  onOpen,
+}: {
+  refreshKey: number;
+  onOpen: (id: string) => void;
+}) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +41,8 @@ export function MeetingsView({ refreshKey }: { refreshKey: number }) {
     load();
   }, [refreshKey]);
 
-  async function del(id: string) {
+  async function del(e: MouseEvent, id: string) {
+    e.stopPropagation();
     if (!confirm("Excluir esta reunião e seus áudios?")) return;
     await api.meetings.delete(id);
     load();
@@ -56,7 +63,12 @@ export function MeetingsView({ refreshKey }: { refreshKey: number }) {
       {meetings.map((m) => {
         const st = STAGE_LABEL[m.stage] ?? { text: m.stage, cls: "warn" };
         return (
-          <div className="card" key={m.id}>
+          <div
+            className="card"
+            key={m.id}
+            onClick={() => onOpen(m.id)}
+            style={{ cursor: "pointer" }}
+          >
             <div className="row" style={{ border: 0 }}>
               <div>
                 <div>{m.title}</div>
@@ -74,7 +86,7 @@ export function MeetingsView({ refreshKey }: { refreshKey: number }) {
                 <span className={`badge ${st.cls}`}>{st.text}</span>
                 <div>
                   <button
-                    onClick={() => del(m.id)}
+                    onClick={(e) => del(e, m.id)}
                     style={{
                       background: "transparent",
                       border: 0,

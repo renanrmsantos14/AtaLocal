@@ -311,6 +311,16 @@ impl ModelManager {
         }
 
         std::fs::rename(&part_path, &final_path)?;
+
+        // Modelos do Sherpa vem em .tar.bz2: extrai ao lado, numa pasta com o id.
+        if final_path.extension().and_then(|e| e.to_str()) == Some("bz2") {
+            let dest = self.dir.join(id);
+            if let Err(e) = extract_tar_bz2(&final_path, &dest) {
+                self.save_state(id, ModelStatus::Failed, def.size_bytes, Some(&e.to_string()))?;
+                return Err(e);
+            }
+        }
+
         self.save_state(id, ModelStatus::Ready, def.size_bytes, None)?;
         on_progress(DownloadProgress {
             model_id: id.to_string(),
@@ -358,6 +368,37 @@ impl Drop for CancelGuard {
     fn drop(&mut self) {
         self.map.lock().remove(&self.id);
     }
+}
+
+/// Extrai um `.tar.bz2` para `dest`, achatando o diretorio-raiz do arquivo
+/// (os tarballs do Sherpa embrulham tudo numa pasta com o nome do modelo).
+fn extract_tar_bz2(archive: &std::path::Path, dest: &std::path::Path) -> AppResult<()> {
+    let file = std::fs::File::open(archive)?;
+    let decompressor = bzip2::read::BzDecoder::new(file);
+    let mut tar = tar::Archive::new(decompressor);
+
+    let _ = std::fs::remove_dir_all(dest);
+    std::fs::create_dir_all(dest)?;
+
+    for entry in tar.entries().map_err(AppError::Io)? {
+        let mut entry = entry.map_err(AppError::Io)?;
+        let path = entry.path().map_err(AppError::Io)?.into_owned();
+        // Remove o primeiro componente (a pasta-raiz do tarball).
+        let stripped: std::path::PathBuf = path.components().skip(1).collect();
+        if stripped.as_os_str().is_empty() {
+            continue;
+        }
+        let out = dest.join(&stripped);
+        if entry.header().entry_type().is_dir() {
+            std::fs::create_dir_all(&out)?;
+        } else {
+            if let Some(parent) = out.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            entry.unpack(&out).map_err(AppError::Io)?;
+        }
+    }
+    Ok(())
 }
 
 async fn sha256_file(path: &std::path::Path) -> AppResult<String> {
