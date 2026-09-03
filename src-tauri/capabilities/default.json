@@ -8,6 +8,8 @@
     "core:event:default",
     "dialog:default",
     "fs:default",
-    "os:default"
+    "os:default",
+    "updater:default",
+    "process:default"
   ]
 }

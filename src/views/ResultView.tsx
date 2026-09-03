@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, events, type PipelineProgress } from "../api";
-import type { Meeting, TranscriptSegment } from "../types";
+import type {
+  Meeting,
+  TranscriptSegment,
+  MeetingSummary,
+  StoredActionItem,
+} from "../types";
 
 function ts(secs: number): string {
   const s = Math.floor(secs % 60);
@@ -33,8 +38,10 @@ function clusterColor(c: number | null): string {
 export function ResultView({ meetingId }: { meetingId: string }) {
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+  const [summary, setSummary] = useState<MeetingSummary | null>(null);
+  const [actions, setActions] = useState<StoredActionItem[]>([]);
   const [progress, setProgress] = useState<PipelineProgress | null>(null);
-  const [tab, setTab] = useState<"transcript" | "summary" | "tasks">("transcript");
+  const [tab, setTab] = useState<"transcript" | "summary" | "tasks">("summary");
   const pollRef = useRef<number | null>(null);
 
   async function refresh() {
@@ -42,6 +49,8 @@ export function ResultView({ meetingId }: { meetingId: string }) {
       const m = await api.meetings.get(meetingId);
       setMeeting(m);
       setSegments(await api.meetings.segments(meetingId));
+      setSummary(await api.meetings.summary(meetingId));
+      setActions(await api.meetings.actions(meetingId));
       if (!PROCESSING.includes(m.stage) && pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
@@ -169,13 +178,98 @@ export function ResultView({ meetingId }: { meetingId: string }) {
       )}
 
       {tab === "summary" && (
-        <div className="card">
-          <p className="muted">A ata é gerada na etapa de resumo (em construção).</p>
-        </div>
+        <>
+          {!summary && (
+            <div className="card">
+              <p className="muted">
+                {processing
+                  ? "A ata aparecerá aqui quando ficar pronta."
+                  : "Sem ata gerada. Use 'Tentar novamente' para reprocessar."}
+              </p>
+            </div>
+          )}
+          {summary && (
+            <>
+              <div className="card">
+                <h2>Resumo executivo</h2>
+                <p>{summary.executive_summary}</p>
+              </div>
+              {summary.topics.length > 0 && (
+                <div className="card">
+                  <h2>Temas discutidos</h2>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {summary.topics.map((t, i) => (
+                      <li key={i}>{t}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {summary.decisions.length > 0 && (
+                <div className="card">
+                  <h2>Decisões</h2>
+                  {summary.decisions.map((d, i) => (
+                    <div className="row" key={i}>
+                      <span>{d.text}</span>
+                      {d.timestamp && (
+                        <span className="muted mono">{d.timestamp}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {summary.pending.length > 0 && (
+                <div className="card">
+                  <h2>Pendências</h2>
+                  {summary.pending.map((p, i) => (
+                    <div className="row" key={i}>
+                      <span>{p.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {summary.divergences.length > 0 && (
+                <div className="card">
+                  <h2>Divergências</h2>
+                  {summary.divergences.map((p, i) => (
+                    <div className="row" key={i}>
+                      <span>{p.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {summary.next_steps.length > 0 && (
+                <div className="card">
+                  <h2>Próximos passos</h2>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {summary.next_steps.map((t, i) => (
+                      <li key={i}>{t}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
       {tab === "tasks" && (
         <div className="card">
-          <p className="muted">As tarefas são extraídas junto com a ata (em construção).</p>
+          {actions.length === 0 && (
+            <p className="muted">
+              {processing ? "Extraindo tarefas…" : "Nenhuma tarefa registrada."}
+            </p>
+          )}
+          {actions.map((a) => (
+            <div className="row" key={a.id}>
+              <div>
+                <div>{a.description}</div>
+                <div className="muted mono">
+                  Responsável: {a.assignee ?? "Não informado"} · Prazo:{" "}
+                  {a.due ?? "Não informado"}
+                </div>
+              </div>
+              <span className="badge warn">{a.status}</span>
+            </div>
+          ))}
         </div>
       )}
     </>

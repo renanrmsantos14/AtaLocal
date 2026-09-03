@@ -81,13 +81,21 @@ pub const CATALOG: &[ModelDef] = &[
         sha256: "269d078c31cb176cb7c2c87952e9a8b30b19541df95445aaaa961c91a0760159",
         size_bytes: 18_752_734,
     },
-    // ---- Resumo (llama.cpp) ----
+    // ---- Resumo (llama.cpp — roda como subprocesso, ADR 0005) ----
+    ModelDef {
+        id: "llama-cpp-bin",
+        kind: ModelKind::Tool,
+        filename: "llama-b10793-bin-win-cpu-x64.zip",
+        url: "https://github.com/ggml-org/llama.cpp/releases/download/b10793/llama-b10793-bin-win-cpu-x64.zip",
+        sha256: "da6c5650bb1c97a81bc0c1594137d614bd566b8a54161898325e22f925271d7b",
+        size_bytes: 18_389_766,
+    },
     ModelDef {
         id: "qwen3-4b-instruct-q4_k_m",
         kind: ModelKind::Llm,
         filename: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
         url: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
-        sha256: "",
+        sha256: "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
         size_bytes: 2_497_281_120,
     },
 ];

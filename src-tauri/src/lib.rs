@@ -7,6 +7,7 @@ mod models;
 mod paths;
 mod pipeline;
 mod session;
+mod summarize;
 mod transcribe;
 
 /// Superficie minima para testes de integracao. Nao usar em runtime.
@@ -77,6 +78,30 @@ pub mod testing {
         }
     }
 
+    /// Resumo exposto para teste de integracao (roda o llama-cli).
+    pub mod summarize {
+        use std::path::Path;
+
+        use crate::error::AppResult;
+        use crate::summarize::{LabeledLine, MeetingMinutes, Summarizer};
+
+        pub fn run(
+            exe: &Path,
+            model: &Path,
+            lines: &[(f64, String, String)],
+        ) -> AppResult<MeetingMinutes> {
+            let labeled: Vec<LabeledLine> = lines
+                .iter()
+                .map(|(t, s, x)| LabeledLine {
+                    start_secs: *t,
+                    speaker: s.clone(),
+                    text: x.clone(),
+                })
+                .collect();
+            Summarizer::new(exe, model)?.run(&labeled, |_| {})
+        }
+    }
+
     /// Transcricao exposta para teste de integracao (usa modelo real).
     pub mod transcribe {
         use std::path::Path;
@@ -125,6 +150,7 @@ use tauri::{Emitter, Manager, State};
 
 use crate::db::meetings::{self, Meeting};
 use crate::db::segments::{self, TranscriptSegment};
+use crate::db::summary::{self, StoredActionItem, StoredSummary};
 use crate::db::settings::{self, AppSettings, SettingsPatch};
 use crate::db::Db;
 use crate::pipeline::Pipeline;
@@ -268,6 +294,22 @@ fn list_segments(
     segments::list(&state.db, &meeting_id)
 }
 
+#[tauri::command]
+fn get_summary(
+    state: State<'_, AppState>,
+    meeting_id: String,
+) -> AppResult<Option<StoredSummary>> {
+    summary::get(&state.db, &meeting_id)
+}
+
+#[tauri::command]
+fn list_actions(
+    state: State<'_, AppState>,
+    meeting_id: String,
+) -> AppResult<Vec<StoredActionItem>> {
+    summary::list_actions(&state.db, &meeting_id)
+}
+
 /// Inicia (ou retoma) o processamento de uma reuniao numa thread dedicada.
 #[tauri::command]
 fn process_meeting(
@@ -323,6 +365,8 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(move |app| {
             app.manage(AppState {
                 paths: paths.clone(),
@@ -349,6 +393,8 @@ pub fn run() {
             get_meeting,
             delete_meeting,
             list_segments,
+            get_summary,
+            list_actions,
             process_meeting,
         ])
         .run(tauri::generate_context!())

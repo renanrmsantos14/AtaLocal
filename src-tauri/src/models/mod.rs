@@ -114,7 +114,7 @@ impl ModelManager {
     pub fn resolve_file(&self, id: &str, sub: Option<&str>) -> AppResult<PathBuf> {
         let def = catalog::find(id)
             .ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
-        if def.filename.ends_with(".tar.bz2") {
+        if def.filename.ends_with(".tar.bz2") || def.filename.ends_with(".zip") {
             let base = self.extracted_dir(id);
             if let Some(s) = sub {
                 let p = base.join(s);
@@ -361,10 +361,17 @@ impl ModelManager {
 
         std::fs::rename(&part_path, &final_path)?;
 
-        // Modelos do Sherpa vem em .tar.bz2: extrai ao lado, numa pasta com o id.
-        if final_path.extension().and_then(|e| e.to_str()) == Some("bz2") {
+        // Pacotes de ferramentas: Sherpa em .tar.bz2, llama.cpp em .zip.
+        // Extrai numa pasta com o id (achatando um diretorio-raiz unico).
+        let ext = final_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if ext == "bz2" || ext == "zip" {
             let dest = self.dir.join(id);
-            if let Err(e) = extract_tar_bz2(&final_path, &dest) {
+            let result = if ext == "bz2" {
+                extract_tar_bz2(&final_path, &dest)
+            } else {
+                extract_zip(&final_path, &dest)
+            };
+            if let Err(e) = result {
                 self.save_state(id, ModelStatus::Failed, def.size_bytes, Some(&e.to_string()))?;
                 return Err(e);
             }
@@ -445,6 +452,37 @@ fn extract_tar_bz2(archive: &std::path::Path, dest: &std::path::Path) -> AppResu
                 std::fs::create_dir_all(parent)?;
             }
             entry.unpack(&out).map_err(AppError::Io)?;
+        }
+    }
+    Ok(())
+}
+
+/// Extrai um `.zip` para `dest`. O zip do llama.cpp poe tudo na raiz (sem
+/// diretorio-pai), entao nao achata nada.
+fn extract_zip(archive: &std::path::Path, dest: &std::path::Path) -> AppResult<()> {
+    let file = std::fs::File::open(archive)?;
+    let mut zip = zip::ZipArchive::new(file)
+        .map_err(|e| AppError::Model(format!("zip invalido: {e}")))?;
+
+    let _ = std::fs::remove_dir_all(dest);
+    std::fs::create_dir_all(dest)?;
+
+    for i in 0..zip.len() {
+        let mut entry = zip
+            .by_index(i)
+            .map_err(|e| AppError::Model(format!("entrada zip {i}: {e}")))?;
+        let Some(rel) = entry.enclosed_name() else {
+            continue;
+        };
+        let out = dest.join(&rel);
+        if entry.is_dir() {
+            std::fs::create_dir_all(&out)?;
+        } else {
+            if let Some(parent) = out.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut w = std::fs::File::create(&out)?;
+            std::io::copy(&mut entry, &mut w)?;
         }
     }
     Ok(())

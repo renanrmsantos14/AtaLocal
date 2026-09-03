@@ -80,7 +80,15 @@ export interface SummaryEntry {
   text: string;
   /** Referência de horário "HH:MM:SS" no áudio. */
   timestamp: string | null;
-  source_segment_ids: string[];
+}
+
+export interface StoredActionItem {
+  id: string;
+  meeting_id: string;
+  description: string;
+  assignee: string | null;
+  due: string | null;
+  status: string;
 }
 
 export interface ProcessingJob {

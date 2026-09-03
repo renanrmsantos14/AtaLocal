@@ -7,6 +7,8 @@ import type {
   RecordingState,
   Meeting,
   TranscriptSegment,
+  MeetingSummary,
+  StoredActionItem,
 } from "./types";
 
 export const api = {
@@ -47,6 +49,10 @@ export const api = {
       invoke<void>("delete_meeting", { meetingId }),
     segments: (meetingId: string) =>
       invoke<TranscriptSegment[]>("list_segments", { meetingId }),
+    summary: (meetingId: string) =>
+      invoke<MeetingSummary | null>("get_summary", { meetingId }),
+    actions: (meetingId: string) =>
+      invoke<StoredActionItem[]>("list_actions", { meetingId }),
     process: (meetingId: string) =>
       invoke<void>("process_meeting", { meetingId }),
   },

@@ -9,6 +9,7 @@ use crate::paths::AppPaths;
 pub mod meetings;
 pub mod segments;
 pub mod settings;
+pub mod summary;
 
 /// Conexao SQLite compartilhada. Serializada por um Mutex — o volume de
 /// escrita do app e baixo e isso evita toda a complexidade de um pool.

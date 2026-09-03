@@ -2,23 +2,24 @@
 //! le o estado do banco, faz seu trabalho e avanca. Se o app cair, a proxima
 //! execucao continua da etapa registrada sem repetir as anteriores.
 //!
-//! Fase 2: transcricao e diarizacao implementadas. Identificacao de vozes e
-//! resumo sao marcadores que apenas avancam o estado ate serem construidos.
+//! Fase 2: transcricao, diarizacao e resumo implementados. Identificacao de
+//! vozes (cluster -> pessoa) e um marcador ate a Fase 3.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter};
 
-use crate::db::meetings::{self, Stage};
-use crate::db::settings;
-use crate::db::{segments, Db};
 use crate::audio::wav::WavWriter;
 use crate::audio::TARGET_SAMPLE_RATE;
+use crate::db::meetings::{self, Stage};
+use crate::db::settings;
+use crate::db::{segments, summary, Db};
 use crate::diarize;
 use crate::error::{AppError, AppResult};
 use crate::models::{catalog, ModelManager};
 use crate::paths::AppPaths;
+use crate::summarize::{LabeledLine, Summarizer};
 use crate::transcribe::{self, Transcriber};
 
 #[derive(Clone, serde::Serialize)]
@@ -104,8 +105,17 @@ impl Pipeline {
                     self.set_stage(&meeting_id, Stage::Summarizing, None)?;
                 }
                 Stage::Summarizing => {
-                    // TODO Fase 2: llama.cpp + Qwen3.
-                    self.emit(&meeting_id, Stage::Summarizing, 1.0, "etapa ainda nao implementada");
+                    self.emit(&meeting_id, Stage::Summarizing, 0.0, "carregando modelo de resumo");
+                    if let Err(e) = self.summarize(&meeting) {
+                        // Resumo falho nao invalida a transcricao/diarizacao.
+                        tracing::warn!(meeting = %meeting_id, "resumo pulado: {e}");
+                        self.emit(
+                            &meeting_id,
+                            Stage::Summarizing,
+                            1.0,
+                            &format!("ata indisponivel: {e}"),
+                        );
+                    }
                     self.set_stage(&meeting_id, Stage::Completed, None)?;
                 }
                 Stage::Completed | Stage::Failed | Stage::Cancelled => {
@@ -225,6 +235,67 @@ impl Pipeline {
             vozes = distintos.len(),
             spans = voice.len(),
             "diarizacao concluida"
+        );
+        Ok(())
+    }
+
+    fn summarize(&self, meeting: &meetings::Meeting) -> AppResult<()> {
+        let segs = segments::list(&self.db, &meeting.id)?;
+        if segs.is_empty() {
+            return Err(AppError::Other("sem transcricao para resumir".into()));
+        }
+
+        let exe = self.models.resolve_file(
+            "llama-cpp-bin",
+            Some("llama-cli.exe"),
+        )?;
+        let model = self
+            .models
+            .resolve_file("qwen3-4b-instruct-q4_k_m", None)
+            .or_else(|_| {
+                let def = catalog::find("qwen3-4b-instruct-q4_k_m").unwrap();
+                let p = self.paths.models_dir.join(def.filename);
+                if p.exists() {
+                    Ok(p)
+                } else {
+                    Err(AppError::Model("modelo de resumo ausente".into()))
+                }
+            })?;
+
+        let lines: Vec<LabeledLine> = segs
+            .iter()
+            .map(|s| LabeledLine {
+                start_secs: s.start_secs,
+                speaker: s
+                    .speaker_id
+                    .clone()
+                    .or_else(|| s.cluster.map(|c| format!("Voz {}", c + 1)))
+                    .unwrap_or_else(|| "Nao identificado".into()),
+                text: s.text.clone(),
+            })
+            .collect();
+
+        let summarizer = Summarizer::new(&exe, &model)?;
+        let mid = meeting.id.clone();
+        let app = self.app.clone();
+        let minutes = summarizer.run(&lines, move |p| {
+            let _ = app.emit(
+                "pipeline://progress",
+                PipelineProgress {
+                    meeting_id: mid.clone(),
+                    stage: Stage::Summarizing,
+                    progress: p,
+                    message: "gerando a ata".to_string(),
+                },
+            );
+        })?;
+
+        summary::replace(&self.db, &meeting.id, &minutes)?;
+        tracing::info!(
+            meeting = %meeting.id,
+            decisoes = minutes.decisions.len(),
+            tarefas = minutes.action_items.len(),
+            "ata gerada"
         );
         Ok(())
     }

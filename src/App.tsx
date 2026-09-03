@@ -4,8 +4,9 @@ import { ModelsView } from "./views/ModelsView";
 import { RecordView } from "./views/RecordView";
 import { MeetingsView } from "./views/MeetingsView";
 import { ResultView } from "./views/ResultView";
+import { SettingsView } from "./views/SettingsView";
 
-type Tab = "record" | "meetings" | "models" | "diagnostics";
+type Tab = "record" | "meetings" | "models" | "diagnostics" | "settings";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("record");
@@ -17,6 +18,7 @@ export function App() {
     ["meetings", "Reuniões"],
     ["models", "Modelos"],
     ["diagnostics", "Diagnóstico"],
+    ["settings", "Configurações"],
   ];
 
   function goToMeeting(id: string) {
@@ -73,6 +75,7 @@ export function App() {
             )}
             {tab === "models" && <ModelsView />}
             {tab === "diagnostics" && <DiagnosticsView />}
+            {tab === "settings" && <SettingsView />}
           </>
         )}
       </main>

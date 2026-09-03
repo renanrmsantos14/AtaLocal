@@ -27,3 +27,7 @@ src-tauri/tests/fixtures/
 # Ambiente
 .env
 .env.*
+
+# Chave privada de assinatura do updater — NUNCA versionar
+src-tauri/*.key
+!src-tauri/*.key.pub

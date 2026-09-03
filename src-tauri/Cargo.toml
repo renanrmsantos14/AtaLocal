@@ -1,6 +1,6 @@
 [package]
 name = "atalocal"
-version = "0.1.0"
+version = "0.2.0"
 description = "Transcricao e ata de reunioes presenciais, 100% local"
 authors = ["AtaLocal"]
 edition = "2021"
@@ -18,6 +18,8 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-os = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -35,9 +37,10 @@ cpal = "0.15"
 flacenc = "0.5"
 # Decodificacao FLAC (leitura, para reprocessar o audio ja gravado)
 claxon = "0.4"
-# Extracao dos modelos do Sherpa, distribuidos em .tar.bz2
+# Extracao de pacotes: Sherpa em .tar.bz2, llama.cpp em .zip
 tar = "0.4"
 bzip2 = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 # Transcricao: bindings do whisper.cpp (compila libwhisper via cmake, backend CPU)
 whisper-rs = "0.16"
