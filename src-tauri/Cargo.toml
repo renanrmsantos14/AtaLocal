@@ -31,8 +31,9 @@ sysinfo = "0.32"
 # Captura de audio (Fase 1: enumeracao; Fase 2: gravacao)
 cpal = "0.15"
 
-# Download de modelos
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+# Download de modelos. TLS via Schannel (native-tls) para nao arrastar o crate
+# `ring`, cujo build-script e bloqueado pela politica de seguranca desta maquina.
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "stream"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync"] }
 futures-util = "0.3"
 sha2 = "0.10"

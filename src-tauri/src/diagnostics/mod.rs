@@ -119,7 +119,7 @@ pub fn run(paths: &AppPaths) -> AppResult<SystemDiagnostics> {
         .map(|c| c.brand().trim().to_string())
         .unwrap_or_else(|| "desconhecido".into());
     let cpu_cores_logical = sys.cpus().len();
-    let cpu_cores_physical = System::physical_core_count().unwrap_or(cpu_cores_logical);
+    let cpu_cores_physical = sys.physical_core_count().unwrap_or(cpu_cores_logical);
 
     let total_ram_gb = bytes_to_gb(sys.total_memory());
     let available_ram_gb = bytes_to_gb(sys.available_memory());

@@ -12,6 +12,8 @@ registrado na conversa de origem. Este arquivo resume o estado de execução.
 - [x] Diagnóstico: CPU, RAM, disco, microfones (`src-tauri/src/diagnostics`)
 - [x] Gerenciador de download de modelos: progresso, checksum SHA-256, retomada
       via HTTP Range, cancelamento (`src-tauri/src/models`)
+- [x] Build compila limpo; app sobe com `npm run tauri dev`
+- [x] Smoke tests da Fase 1 passando (`cargo test --test phase1_smoke`)
 - [ ] Fixar checksums definitivos dos modelos após primeiro download
 - [ ] Benchmark real no Inspiron 15 3530 (tempo, memória, qualidade)
 - [ ] Escolher modelo whisper definitivo (padrão de segurança: `large-v3-turbo-q5_0`)

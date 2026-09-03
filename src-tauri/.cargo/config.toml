@@ -1,0 +1,4 @@
+# O linker MSVC emite em stdout "Criando biblioteca ..." ao gerar a cdylib;
+# e informativo. Silencia o lint que o transforma em warning de build.
+[build]
+rustflags = ["-A", "linker_messages"]

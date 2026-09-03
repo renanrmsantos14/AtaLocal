@@ -5,6 +5,49 @@ mod error;
 mod models;
 mod paths;
 
+/// Superficie minima para testes de integracao. Nao usar em runtime.
+pub mod testing {
+    use std::path::Path;
+
+    use crate::db::Db;
+    use crate::diagnostics::{self, SystemDiagnostics};
+    use crate::error::AppResult;
+    use crate::models::catalog::CATALOG;
+    use crate::paths::AppPaths;
+
+    fn paths_at(dir: &Path) -> AppPaths {
+        AppPaths {
+            data_dir: dir.to_path_buf(),
+            models_dir: dir.join("models"),
+            recordings_dir: dir.join("recordings"),
+            logs_dir: dir.join("logs"),
+            db_path: dir.join("atalocal.db"),
+        }
+    }
+
+    pub fn run_diagnostics_at(dir: &Path) -> AppResult<SystemDiagnostics> {
+        diagnostics::run(&paths_at(dir))
+    }
+
+    pub fn open_db_and_list_tables(dir: &Path) -> AppResult<Vec<String>> {
+        std::fs::create_dir_all(dir)?;
+        let db = Db::open(&paths_at(dir))?;
+        db.with(|conn| {
+            let mut stmt =
+                conn.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")?;
+            let rows = stmt
+                .query_map([], |r| r.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
+        })
+    }
+
+    /// (id, url, tamanho declarado em bytes) de cada modelo do catalogo.
+    pub fn model_catalog() -> Vec<(&'static str, &'static str, u64)> {
+        CATALOG.iter().map(|m| (m.id, m.url, m.size_bytes)).collect()
+    }
+}
+
 use std::sync::Arc;
 
 use tauri::{Emitter, Manager, State};

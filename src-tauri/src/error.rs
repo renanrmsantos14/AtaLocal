@@ -16,6 +16,7 @@ pub enum AppError {
     Json(#[from] serde_json::Error),
 
     #[error("audio: {0}")]
+    #[allow(dead_code)] // usado a partir da Fase 2 (captura)
     Audio(String),
 
     #[error("modelo: {0}")]
@@ -32,6 +33,7 @@ pub enum AppError {
     Cancelled,
 
     #[error("{0}")]
+    #[allow(dead_code)] // erro generico para uso futuro
     Other(String),
 }
 
