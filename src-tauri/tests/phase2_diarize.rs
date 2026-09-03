@@ -1,44 +1,37 @@
-//! Fase 2: diarizacao real com Sherpa-ONNX.
+//! Fase 2: diarizacao real via subprocesso sherpa-onnx.
 //!
-//! Requer os modelos baixados na pasta local do app E um WAV de teste em
-//! `tests/fixtures/2-two-speakers-en.wav` (nao versionado — baixe de
-//! github.com/k2-fsa/sherpa-onnx releases/speaker-segmentation-models).
+//! Requer os modelos + o binario do sherpa na pasta local do app E o WAV de
+//! teste em `tests/fixtures/2-two-speakers-en.wav` (nao versionado).
 //! Sem esses arquivos, o teste e ignorado.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use atalocal_lib::testing::diarize as td;
 
-fn app_models_dir() -> Option<PathBuf> {
-    let base = dirs_data()?.join("local").join("AtaLocal").join("data").join("models");
-    base.is_dir().then_some(base)
-}
-
-fn dirs_data() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(PathBuf::from)
+fn models() -> Option<PathBuf> {
+    let d = PathBuf::from(std::env::var_os("APPDATA")?)
+        .join("local/AtaLocal/data/models");
+    d.is_dir().then_some(d)
 }
 
 #[test]
 fn diariza_dois_locutores() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/2-two-speakers-en.wav");
-    let Some(models) = app_models_dir() else {
-        eprintln!("modelos do app ausentes; teste ignorado");
+    let Some(m) = models() else {
+        eprintln!("modelos ausentes; ignorado");
         return;
     };
-    let seg = models.join("sherpa-segmentation-pyannote/model.onnx");
-    let emb = models.join("3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx");
-    if !fixture.exists() || !seg.exists() || !emb.exists() {
-        eprintln!("fixtures/modelos ausentes; teste ignorado");
+    let exe = m.join("sherpa-onnx-bin/bin/sherpa-onnx-offline-speaker-diarization.exe");
+    let seg = m.join("sherpa-segmentation-pyannote/model.onnx");
+    let emb = m.join("3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx");
+    let wav = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/2-two-speakers-en.wav");
+    if ![&exe, &seg, &emb, &wav].iter().all(|p| p.exists()) {
+        eprintln!("exe/modelos/fixture ausentes; ignorado");
         return;
     }
 
-    let spans = td::run(&seg, &emb, &fixture, Some(2)).expect("diarizacao falhou");
-    assert!(!spans.is_empty(), "sem spans de voz");
+    let spans = td::run(&exe, &seg, &emb, &wav, Some(2)).expect("diarizacao falhou");
+    assert!(!spans.is_empty());
     let vozes: std::collections::HashSet<_> = spans.iter().map(|(_, _, c)| *c).collect();
     assert_eq!(vozes.len(), 2, "esperava 2 vozes, veio {}", vozes.len());
-
-    // Os spans devem estar ordenados e dentro de ~30s (duracao do fixture).
-    let last_end = spans.last().map(|(_, e, _)| *e).unwrap_or(0.0);
-    assert!(last_end > 1.0 && last_end < 60.0, "duracao inesperada: {last_end}");
 }

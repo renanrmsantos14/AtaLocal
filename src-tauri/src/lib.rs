@@ -77,24 +77,40 @@ pub mod testing {
         }
     }
 
-    /// Diarizacao exposta para teste de integracao (usa modelos reais).
+    /// Transcricao exposta para teste de integracao (usa modelo real).
+    pub mod transcribe {
+        use std::path::Path;
+
+        use crate::error::AppResult;
+        use crate::transcribe::{load_mono_16k, Transcriber};
+
+        pub fn run(model: &Path, audio: &Path) -> AppResult<Vec<(f64, f64, String)>> {
+            let samples = load_mono_16k(audio)?;
+            let t = Transcriber::load(model)?;
+            let segs = t.run(&samples, |_| {})?;
+            Ok(segs
+                .into_iter()
+                .map(|s| (s.start_secs, s.end_secs, s.text))
+                .collect())
+        }
+    }
+
+    /// Diarizacao exposta para teste de integracao (roda o exe do sherpa).
     pub mod diarize {
         use std::path::Path;
 
-        use crate::diarize::Diarizer;
         use crate::error::AppResult;
-        use crate::transcribe::load_mono_16k;
 
         /// Roda a diarizacao e devolve (start, end, cluster) por span de voz.
         pub fn run(
+            exe: &Path,
             segmentation: &Path,
             embedding: &Path,
             audio: &Path,
             num_speakers: Option<i32>,
         ) -> AppResult<Vec<(f64, f64, i64)>> {
-            let samples = load_mono_16k(audio)?;
-            let mut d = Diarizer::load(segmentation, embedding, num_speakers)?;
-            let spans = d.run(samples, |_| {})?;
+            let spans =
+                crate::diarize::run(exe, segmentation, embedding, audio, num_speakers)?;
             Ok(spans
                 .into_iter()
                 .map(|s| (s.start_secs, s.end_secs, s.cluster))

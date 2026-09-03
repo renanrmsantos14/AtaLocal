@@ -70,21 +70,24 @@ identifying, summarizing, completed, failed, cancelled` — enum `Stage` em
   whisper-rs-sys. CMake + LLVM no PATH do usuário. `LIBCLANG_PATH` em
   `src-tauri/.cargo/config.toml`.
 
-### Diarização  (FEITO)
+### Diarização  (FEITO — via subprocesso, ADR 0005)
 
-- `src-tauri/src/diarize/mod.rs`: `Diarizer` sobre `sherpa-rs` 0.6
-  (segmentação pyannote + embedding campplus). `num_clusters` = participantes
-  conhecidos (settings). `assign_clusters()` liga cada segmento de transcrição
-  ao cluster de voz de maior sobreposição temporal (min_overlap 0.2s).
+- **whisper.cpp e sherpa-onnx não convivem no mesmo .exe** (crash 0x80000003).
+  Solução: o `sherpa-onnx-offline-speaker-diarization.exe` roda como
+  subprocesso. whisper.cpp e llama.cpp seguem como bindings compilados.
+- `src-tauri/src/diarize/mod.rs`: monta a CLI (segmentação pyannote + embedding
+  campplus, `--clustering.num-clusters` = participantes), parseia
+  `INICIO -- FIM speaker_NN`. `assign_clusters()` liga cada segmento de
+  transcrição ao cluster de maior sobreposição (min_overlap 0.2s).
 - `db/segments.rs::set_clusters`: grava o cluster por segmento.
-- Pipeline: etapa `diarizing` roda o Sherpa; falha nela não invalida a
-  transcrição (segue sem separação e registra o motivo).
-- Modelos: `sherpa-segmentation-pyannote` (.tar.bz2, extraído p/ `model.onnx`)
-  e `sherpa-speaker-embedding-campplus` (checksum fixado). O typo do upstream
-  na tag é "speaker-recongition-models".
+- Pipeline: escreve WAV temp mono 16k, roda o exe, apaga. Falha não invalida
+  a transcrição.
+- Catálogo: `sherpa-onnx-bin` (Tool, ~19 MB), `sherpa-segmentation-pyannote`
+  (.tar.bz2 → `model.onnx`), `sherpa-speaker-embedding-campplus`. Todos com
+  checksum fixado. Typo do upstream na tag: "speaker-recongition-models".
 - UI: `ResultView` mostra "Voz 1/2/3" com cor por cluster.
-- **Validado**: teste de integração com Sherpa real + áudio de 2 locutores
-  detectou exatamente 2 vozes. 8/8 testes verdes.
+- **Validado**: teste de integração — áudio de 2 locutores → 2 vozes em ~7s.
+  Transcrição isolada (sem sherpa) também validada. 10/10 testes verdes.
 
 ### Pendente na Fase 2
 

@@ -13,7 +13,9 @@ use tauri::{AppHandle, Emitter};
 use crate::db::meetings::{self, Stage};
 use crate::db::settings;
 use crate::db::{segments, Db};
-use crate::diarize::{self, Diarizer};
+use crate::audio::wav::WavWriter;
+use crate::audio::TARGET_SAMPLE_RATE;
+use crate::diarize;
 use crate::error::{AppError, AppResult};
 use crate::models::{catalog, ModelManager};
 use crate::paths::AppPaths;
@@ -190,26 +192,24 @@ impl Pipeline {
         let emb_model = self
             .models
             .resolve_file("sherpa-speaker-embedding-campplus", None)?;
+        let exe = self.models.resolve_file(
+            "sherpa-onnx-bin",
+            Some("bin/sherpa-onnx-offline-speaker-diarization.exe"),
+        )?;
 
         let n = settings::load(&self.db, &self.paths)
             .map(|s| s.participant_count as i32)
             .unwrap_or(3);
 
-        let mut diarizer = Diarizer::load(&seg_model, &emb_model, Some(n))?;
+        // O exe le WAV; escreve um temporario mono 16 kHz a partir do audio.
+        let tmp_wav = std::env::temp_dir()
+            .join(format!("atalocal-diarize-{}.wav", meeting.id));
+        write_wav_mono16k(&tmp_wav, &samples)?;
 
-        let mid = meeting.id.clone();
-        let app = self.app.clone();
-        let voice = diarizer.run(samples, move |p| {
-            let _ = app.emit(
-                "pipeline://progress",
-                PipelineProgress {
-                    meeting_id: mid.clone(),
-                    stage: Stage::Diarizing,
-                    progress: p,
-                    message: "separando vozes".to_string(),
-                },
-            );
-        })?;
+        self.emit(&meeting.id, Stage::Diarizing, 0.3, "separando vozes");
+        let voice = diarize::run(&exe, &seg_model, &emb_model, &tmp_wav, Some(n));
+        let _ = std::fs::remove_file(&tmp_wav);
+        let voice = voice?;
 
         let transcript: Vec<(f64, f64)> = segments::list(&self.db, &meeting.id)?
             .iter()
@@ -228,4 +228,15 @@ impl Pipeline {
         );
         Ok(())
     }
+}
+
+/// Escreve amostras mono f32 como WAV PCM16 16 kHz (entrada do exe do sherpa).
+fn write_wav_mono16k(path: &std::path::Path, samples: &[f32]) -> AppResult<()> {
+    let mut w = WavWriter::create(path, 1, TARGET_SAMPLE_RATE, 16)?;
+    let pcm: Vec<i16> = samples
+        .iter()
+        .map(|s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
+        .collect();
+    w.write_i16(&pcm)?;
+    w.finalize()
 }

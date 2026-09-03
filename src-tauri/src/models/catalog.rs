@@ -8,6 +8,8 @@ pub enum ModelKind {
     Diarization,
     Embedding,
     Llm,
+    /// Executavel auxiliar (nao e um modelo, mas baixa pelo mesmo caminho).
+    Tool,
 }
 
 /// Definicao estatica de um modelo baixavel.
@@ -68,6 +70,16 @@ pub const CATALOG: &[ModelDef] = &[
         url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
         sha256: "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2",
         size_bytes: 28_281_164,
+    },
+    // Executavel de diarizacao (roda como subprocesso — ver ADR 0005).
+    // Build "shared-MD-Release-no-tts": traz o .exe + onnxruntime.dll.
+    ModelDef {
+        id: "sherpa-onnx-bin",
+        kind: ModelKind::Tool,
+        filename: "sherpa-onnx-v1.13.7-win-x64.tar.bz2",
+        url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.7/sherpa-onnx-v1.13.7-win-x64-shared-MD-Release-no-tts.tar.bz2",
+        sha256: "269d078c31cb176cb7c2c87952e9a8b30b19541df95445aaaa961c91a0760159",
+        size_bytes: 18_752_734,
     },
     // ---- Resumo (llama.cpp) ----
     ModelDef {

@@ -10,3 +10,6 @@ LIBCLANG_PATH = "C:\\Program Files\\LLVM\\bin"
 # CMake e LLVM foram adicionados ao PATH do usuario (winget + setx).
 # Se o build reclamar de "cmake nao instalado", confirme que
 # C:\Program Files\CMake\bin esta no PATH.
+#
+# Nota: o sherpa-onnx NAO e mais compilado (roda como subprocesso, ADR 0005),
+# entao nao ha conflito de CRT /MT vs /MD com o whisper.cpp.
