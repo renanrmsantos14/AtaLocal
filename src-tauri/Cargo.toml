@@ -28,8 +28,11 @@ rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
 # Diagnostico de sistema
 sysinfo = "0.32"
 
-# Captura de audio (Fase 1: enumeracao; Fase 2: gravacao)
+# Captura de audio
 cpal = "0.15"
+# Codificacao FLAC (sem perda) — encoder 100% Rust, sem dependencia de sistema.
+# Captura escreve WAV incremental; a etapa `finalizing` converte para FLAC.
+flacenc = "0.5"
 
 # Download de modelos. TLS via Schannel (native-tls) para nao arrastar o crate
 # `ring`, cujo build-script e bloqueado pela politica de seguranca desta maquina.

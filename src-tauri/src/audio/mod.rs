@@ -1,7 +1,10 @@
-//! Captura de audio. Fase 1 entrega apenas a enumeracao de dispositivos
-//! (em `diagnostics`). A gravacao incremental, a copia mono 16 kHz PCM16 e o
-//! medidor de volume entram na Fase 2 — ver docs/plano.md.
+//! Captura de audio. Fase 2: gravacao por WASAPI com salvamento incremental,
+//! copia mono 16 kHz PCM16 e medidor de volume.
 
-// Placeholder para manter o modulo no grafo de compilacao.
-#[allow(dead_code)]
+pub mod flac;
+pub mod recorder;
+pub mod resample;
+pub mod wav;
+
+/// Taxa de amostragem alvo para o pipeline de processamento (VAD + whisper).
 pub const TARGET_SAMPLE_RATE: u32 = 16_000;

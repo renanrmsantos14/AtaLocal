@@ -6,6 +6,7 @@ use rusqlite::Connection;
 use crate::error::AppResult;
 use crate::paths::AppPaths;
 
+pub mod meetings;
 pub mod settings;
 
 /// Conexao SQLite compartilhada. Serializada por um Mutex — o volume de

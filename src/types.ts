@@ -157,6 +157,16 @@ export interface ModelInfo {
   error: string | null;
 }
 
+export interface RecordingState {
+  meeting_id: string | null;
+  recording: boolean;
+  level: number;
+  peak: number;
+  duration_secs: number;
+  signal: "ok" | "baixo" | "saturado" | "sem_sinal";
+  error: string | null;
+}
+
 export interface DownloadProgress {
   model_id: string;
   downloaded_bytes: number;

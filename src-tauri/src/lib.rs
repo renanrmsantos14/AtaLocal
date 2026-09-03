@@ -4,6 +4,7 @@ mod diagnostics;
 mod error;
 mod models;
 mod paths;
+mod session;
 
 /// Superficie minima para testes de integracao. Nao usar em runtime.
 pub mod testing {
@@ -46,24 +47,53 @@ pub mod testing {
     pub fn model_catalog() -> Vec<(&'static str, &'static str, u64)> {
         CATALOG.iter().map(|m| (m.id, m.url, m.size_bytes)).collect()
     }
+
+    /// Utilitarios de audio expostos para teste (sem abrir o microfone).
+    pub mod audio {
+        use std::path::Path;
+
+        pub use crate::audio::resample::Downsampler;
+        pub use crate::audio::wav::WavWriter;
+        use crate::error::AppResult;
+
+        pub fn wav_create(
+            path: &Path,
+            channels: u16,
+            sample_rate: u32,
+            bits: u16,
+        ) -> AppResult<WavWriter> {
+            WavWriter::create(path, channels, sample_rate, bits)
+        }
+
+        pub fn downsampler(src_rate: u32, src_channels: u16, dst_rate: u32) -> Downsampler {
+            Downsampler::new(src_rate, src_channels, dst_rate)
+        }
+
+        pub fn wav_to_flac(src: &Path, dst: &Path) -> AppResult<u64> {
+            crate::audio::flac::wav_to_flac(src, dst)
+        }
+    }
 }
 
 use std::sync::Arc;
 
 use tauri::{Emitter, Manager, State};
 
+use crate::db::meetings::{self, Meeting};
 use crate::db::settings::{self, AppSettings, SettingsPatch};
 use crate::db::Db;
 use crate::diagnostics::SystemDiagnostics;
 use crate::error::AppResult;
 use crate::models::{ModelInfo, ModelManager};
 use crate::paths::AppPaths;
+use crate::session::{RecordingState, SessionManager};
 
 /// Estado global compartilhado entre os comandos.
 struct AppState {
     paths: AppPaths,
     db: Db,
     models: Arc<ModelManager>,
+    session: Arc<SessionManager>,
 }
 
 #[tauri::command]
@@ -119,6 +149,55 @@ fn update_settings(
     settings::apply_patch(&state.db, &state.paths, patch)
 }
 
+// ---- Gravacao ----
+
+#[tauri::command]
+fn start_recording(
+    state: State<'_, AppState>,
+    title: String,
+    device: Option<String>,
+) -> AppResult<Meeting> {
+    let title = if title.trim().is_empty() {
+        format!(
+            "Reuniao de {}",
+            chrono::Local::now().format("%d/%m/%Y %H:%M")
+        )
+    } else {
+        title
+    };
+    state.session.start(&title, device)
+}
+
+#[tauri::command]
+fn stop_recording(state: State<'_, AppState>) -> AppResult<String> {
+    state.session.stop()
+}
+
+#[tauri::command]
+fn cancel_recording(state: State<'_, AppState>) -> AppResult<()> {
+    state.session.cancel()
+}
+
+#[tauri::command]
+fn recording_state(state: State<'_, AppState>) -> RecordingState {
+    state.session.state()
+}
+
+#[tauri::command]
+fn list_meetings(state: State<'_, AppState>) -> AppResult<Vec<Meeting>> {
+    meetings::list(&state.db)
+}
+
+#[tauri::command]
+fn get_meeting(state: State<'_, AppState>, meeting_id: String) -> AppResult<Meeting> {
+    meetings::get(&state.db, &meeting_id)
+}
+
+#[tauri::command]
+fn delete_meeting(state: State<'_, AppState>, meeting_id: String) -> AppResult<()> {
+    meetings::delete(&state.db, &meeting_id)
+}
+
 pub fn run() {
     let paths = AppPaths::resolve().expect("nao foi possivel preparar os diretorios locais");
 
@@ -131,6 +210,20 @@ pub fn run() {
 
     let db = Db::open(&paths).expect("nao foi possivel abrir o banco local");
     let models = Arc::new(ModelManager::new(db.clone(), &paths));
+    let session = Arc::new(SessionManager::new(db.clone(), paths.clone()));
+
+    // Reuniao deixada em 'recording' por um fechamento abrupto nao tem como
+    // continuar gravando; marca como 'failed' recuperavel na proxima abertura.
+    if let Ok(list) = meetings::list(&db) {
+        for m in list.into_iter().filter(|m| m.stage == meetings::Stage::Recording) {
+            let _ = meetings::set_stage(
+                &db,
+                &m.id,
+                meetings::Stage::Failed,
+                Some("o aplicativo foi fechado durante a gravacao"),
+            );
+        }
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
@@ -141,6 +234,7 @@ pub fn run() {
                 paths: paths.clone(),
                 db: db.clone(),
                 models: models.clone(),
+                session: session.clone(),
             });
             Ok(())
         })
@@ -153,6 +247,13 @@ pub fn run() {
             remove_model,
             get_settings,
             update_settings,
+            start_recording,
+            stop_recording,
+            cancel_recording,
+            recording_state,
+            list_meetings,
+            get_meeting,
+            delete_meeting,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o AtaLocal");

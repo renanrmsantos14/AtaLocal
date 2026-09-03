@@ -4,6 +4,8 @@ import type {
   SystemDiagnostics,
   ModelInfo,
   AppSettings,
+  RecordingState,
+  Meeting,
 } from "./types";
 
 export const api = {
@@ -27,6 +29,21 @@ export const api = {
     get: () => invoke<AppSettings>("get_settings"),
     update: (patch: Partial<AppSettings>) =>
       invoke<AppSettings>("update_settings", { patch }),
+  },
+
+  recording: {
+    start: (title: string, device: string | null) =>
+      invoke<Meeting>("start_recording", { title, device }),
+    stop: () => invoke<string>("stop_recording"),
+    cancel: () => invoke<void>("cancel_recording"),
+    state: () => invoke<RecordingState>("recording_state"),
+  },
+
+  meetings: {
+    list: () => invoke<Meeting[]>("list_meetings"),
+    get: (meetingId: string) => invoke<Meeting>("get_meeting", { meetingId }),
+    delete: (meetingId: string) =>
+      invoke<void>("delete_meeting", { meetingId }),
   },
 };
 

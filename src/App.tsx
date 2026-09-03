@@ -1,40 +1,48 @@
 import { useState } from "react";
 import { DiagnosticsView } from "./views/DiagnosticsView";
 import { ModelsView } from "./views/ModelsView";
+import { RecordView } from "./views/RecordView";
+import { MeetingsView } from "./views/MeetingsView";
 
-type Tab = "diagnostics" | "models" | "meetings";
+type Tab = "record" | "meetings" | "models" | "diagnostics";
 
 export function App() {
-  const [tab, setTab] = useState<Tab>("diagnostics");
+  const [tab, setTab] = useState<Tab>("record");
+  const [meetingsRefresh, setMeetingsRefresh] = useState(0);
+
+  const nav: [Tab, string][] = [
+    ["record", "Gravar"],
+    ["meetings", "Reuniões"],
+    ["models", "Modelos"],
+    ["diagnostics", "Diagnóstico"],
+  ];
 
   return (
     <div className="app">
       <nav className="sidebar">
         <h1 style={{ fontSize: 16, padding: "0 12px 12px" }}>AtaLocal</h1>
-        <button
-          className={tab === "diagnostics" ? "active" : ""}
-          onClick={() => setTab("diagnostics")}
-        >
-          Diagnóstico
-        </button>
-        <button
-          className={tab === "models" ? "active" : ""}
-          onClick={() => setTab("models")}
-        >
-          Modelos
-        </button>
-        <button
-          className={tab === "meetings" ? "active" : ""}
-          onClick={() => setTab("meetings")}
-          disabled
-        >
-          Reuniões
-        </button>
+        {nav.map(([id, label]) => (
+          <button
+            key={id}
+            className={tab === id ? "active" : ""}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
       </nav>
       <main className="content">
-        {tab === "diagnostics" && <DiagnosticsView />}
+        {tab === "record" && (
+          <RecordView
+            onFinished={() => {
+              setMeetingsRefresh((n) => n + 1);
+              setTab("meetings");
+            }}
+          />
+        )}
+        {tab === "meetings" && <MeetingsView refreshKey={meetingsRefresh} />}
         {tab === "models" && <ModelsView />}
-        {tab === "meetings" && <p className="muted">Em breve (Fase 2).</p>}
+        {tab === "diagnostics" && <DiagnosticsView />}
       </main>
     </div>
   );
