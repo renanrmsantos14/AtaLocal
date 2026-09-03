@@ -174,6 +174,19 @@ fn run_diagnostics(state: State<'_, AppState>) -> AppResult<SystemDiagnostics> {
 }
 
 #[tauri::command]
+fn get_logs(state: State<'_, AppState>) -> AppResult<String> {
+    const MAX_BYTES: usize = 200_000;
+    let path = state.paths.logs_dir.join("atalocal.log");
+    if !path.exists() {
+        return Ok(String::new());
+    }
+
+    let bytes = std::fs::read(path)?;
+    let start = bytes.len().saturating_sub(MAX_BYTES);
+    Ok(String::from_utf8_lossy(&bytes[start..]).into_owned())
+}
+
+#[tauri::command]
 fn list_models(state: State<'_, AppState>) -> AppResult<Vec<ModelInfo>> {
     state.models.list()
 }
@@ -343,11 +356,14 @@ fn process_meeting(
 pub fn run() {
     let paths = AppPaths::resolve().expect("nao foi possivel preparar os diretorios locais");
 
+    let file_appender = tracing_appender::rolling::never(&paths.logs_dir, "atalocal.log");
+    let (log_writer, _log_guard) = tracing_appender::non_blocking(file_appender);
     let _ = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "info".into()),
         )
+        .with_writer(log_writer)
         .try_init();
 
     let db = Db::open(&paths).expect("nao foi possivel abrir o banco local");
@@ -384,6 +400,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             run_diagnostics,
+            get_logs,
             list_models,
             whisper_options,
             download_model,

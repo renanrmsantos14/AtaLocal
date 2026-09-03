@@ -24,6 +24,10 @@ src-tauri/tests/fixtures/
 .DS_Store
 *.log
 
+# Saida de ferramentas auxiliares (grafo de conhecimento, observacoes de skill)
+graphify-out/
+skill-observations/
+
 # Ambiente
 .env
 .env.*

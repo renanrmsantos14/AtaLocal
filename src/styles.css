@@ -101,3 +101,15 @@ button.primary:disabled { opacity: .5; cursor: default; }
 
 .muted { color: var(--text-dim); }
 .mono { font-family: "Cascadia Code", "Consolas", monospace; font-size: 12px; }
+
+.log-panel { padding: 0; overflow: hidden; }
+.log-output {
+  margin: 0;
+  padding: 14px 16px;
+  max-height: 560px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-dim);
+  font: 12px/1.5 "Cascadia Code", "Consolas", monospace;
+}

@@ -17,6 +17,10 @@ export const api = {
     run: () => invoke<SystemDiagnostics>("run_diagnostics"),
   },
 
+  logs: {
+    get: () => invoke<string>("get_logs"),
+  },
+
   models: {
     list: () => invoke<ModelInfo[]>("list_models"),
     whisperOptions: () => invoke<WhisperOption[]>("whisper_options"),
