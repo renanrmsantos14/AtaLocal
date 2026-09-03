@@ -15,6 +15,7 @@ src-tauri/gen/
 *.bin
 *.onnx
 *.wav
+src-tauri/tests/fixtures/
 
 # Editor
 .vscode/*

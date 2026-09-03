@@ -103,6 +103,55 @@ impl ModelManager {
         self.dir.join(format!("{}.part", def.filename))
     }
 
+    /// Diretorio onde um `.tar.bz2` foi extraido (achatado): `models/<id>/`.
+    pub fn extracted_dir(&self, id: &str) -> PathBuf {
+        self.dir.join(id)
+    }
+
+    /// Caminho utilizavel de um modelo ja baixado:
+    /// - arquivo unico: o proprio arquivo;
+    /// - `.tar.bz2`: `models/<id>/<sub>` (ou o unico `.onnx` da pasta se `sub` = None).
+    pub fn resolve_file(&self, id: &str, sub: Option<&str>) -> AppResult<PathBuf> {
+        let def = catalog::find(id)
+            .ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
+        if def.filename.ends_with(".tar.bz2") {
+            let base = self.extracted_dir(id);
+            if let Some(s) = sub {
+                let p = base.join(s);
+                return if p.exists() {
+                    Ok(p)
+                } else {
+                    Err(AppError::Model(format!("arquivo ausente: {}", p.display())))
+                };
+            }
+            // Sem sub: procura o unico .onnx.
+            let onnx: Vec<_> = std::fs::read_dir(&base)
+                .map_err(AppError::Io)?
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("onnx"))
+                .collect();
+            match onnx.as_slice() {
+                [one] => Ok(one.clone()),
+                [] => Err(AppError::Model(format!(
+                    "nenhum .onnx em {}",
+                    base.display()
+                ))),
+                _ => Err(AppError::Model(format!(
+                    "varios .onnx em {}; especifique",
+                    base.display()
+                ))),
+            }
+        } else {
+            let p = self.path_of(def);
+            if p.exists() {
+                Ok(p)
+            } else {
+                Err(AppError::Model(format!("modelo ausente: {}", p.display())))
+            }
+        }
+    }
+
     fn load_state(&self, id: &str) -> AppResult<PersistedState> {
         self.db.with(|conn| {
             let row = conn

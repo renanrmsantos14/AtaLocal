@@ -74,6 +74,32 @@ pub fn list(db: &Db, meeting_id: &str) -> AppResult<Vec<TranscriptSegment>> {
     })
 }
 
+/// Atualiza o cluster de voz de cada segmento, na ordem de `list`.
+/// `clusters[i]` corresponde ao i-esimo segmento ordenado por `start_secs`.
+pub fn set_clusters(db: &Db, meeting_id: &str, clusters: &[Option<i64>]) -> AppResult<()> {
+    db.with(|conn| {
+        let tx = conn.unchecked_transaction()?;
+        let ids: Vec<String> = {
+            let mut stmt = tx.prepare(
+                "SELECT id FROM transcript_segment WHERE meeting_id = ?1 ORDER BY start_secs",
+            )?;
+            let rows: Vec<String> = stmt
+                .query_map([meeting_id], |r| r.get::<_, String>(0))?
+                .collect::<Result<_, _>>()?;
+            rows
+        };
+        {
+            let mut upd =
+                tx.prepare("UPDATE transcript_segment SET cluster = ?2 WHERE id = ?1")?;
+            for (id, cluster) in ids.iter().zip(clusters.iter()) {
+                upd.execute((id, cluster))?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    })
+}
+
 #[allow(dead_code)] // exposto para diagnostico/telas de progresso
 pub fn count(db: &Db, meeting_id: &str) -> AppResult<i64> {
     db.with(|conn| {

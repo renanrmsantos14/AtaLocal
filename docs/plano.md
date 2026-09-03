@@ -70,10 +70,26 @@ identifying, summarizing, completed, failed, cancelled` — enum `Stage` em
   whisper-rs-sys. CMake + LLVM no PATH do usuário. `LIBCLANG_PATH` em
   `src-tauri/.cargo/config.toml`.
 
+### Diarização  (FEITO)
+
+- `src-tauri/src/diarize/mod.rs`: `Diarizer` sobre `sherpa-rs` 0.6
+  (segmentação pyannote + embedding campplus). `num_clusters` = participantes
+  conhecidos (settings). `assign_clusters()` liga cada segmento de transcrição
+  ao cluster de voz de maior sobreposição temporal (min_overlap 0.2s).
+- `db/segments.rs::set_clusters`: grava o cluster por segmento.
+- Pipeline: etapa `diarizing` roda o Sherpa; falha nela não invalida a
+  transcrição (segue sem separação e registra o motivo).
+- Modelos: `sherpa-segmentation-pyannote` (.tar.bz2, extraído p/ `model.onnx`)
+  e `sherpa-speaker-embedding-campplus` (checksum fixado). O typo do upstream
+  na tag é "speaker-recongition-models".
+- UI: `ResultView` mostra "Voz 1/2/3" com cor por cluster.
+- **Validado**: teste de integração com Sherpa real + áudio de 2 locutores
+  detectou exatamente 2 vozes. 8/8 testes verdes.
+
 ### Pendente na Fase 2
 
-- [ ] Diarização real (Sherpa-ONNX) — etapa `diarizing` (hoje é stub)
-- [ ] Identificação de vozes — `identifying` (hoje é stub)
+- [ ] Identificação de vozes — `identifying` (cadastro de perfis + associação
+      cluster→pessoa; hoje é stub). Depende da Fase 3.
 - [ ] Resumo (llama.cpp + Qwen3) — `summarizing` (hoje é stub)
 - [ ] Bug: reunião gravada antes do modelo fica `failed`; o runner deveria
       re-tentar sozinho quando o modelo aparece (hoje precisa do botão)

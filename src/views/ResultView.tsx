@@ -24,6 +24,12 @@ const STAGE_TEXT: Record<string, string> = {
 
 const PROCESSING = ["finalizing", "transcribing", "diarizing", "identifying", "summarizing"];
 
+// Cores estáveis por cluster de voz, enquanto não há perfil identificado.
+const CLUSTER_COLORS = ["#4c8dff", "#3fb950", "#d29922", "#f85149", "#a371f7", "#79c0ff"];
+function clusterColor(c: number | null): string {
+  return c == null ? "var(--text-dim)" : CLUSTER_COLORS[c % CLUSTER_COLORS.length];
+}
+
 export function ResultView({ meetingId }: { meetingId: string }) {
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
@@ -148,9 +154,13 @@ export function ResultView({ meetingId }: { meetingId: string }) {
                 {ts(s.start_secs)}
               </span>
               <span>
-                {s.speaker_id && (
-                  <b style={{ color: "var(--accent)" }}>{s.speaker_id}: </b>
-                )}
+                {s.speaker_id ? (
+                  <b style={{ color: clusterColor(s.cluster) }}>{s.speaker_id}: </b>
+                ) : s.cluster != null ? (
+                  <b style={{ color: clusterColor(s.cluster) }}>
+                    Voz {s.cluster + 1}:{" "}
+                  </b>
+                ) : null}
                 {s.text}
               </span>
             </div>

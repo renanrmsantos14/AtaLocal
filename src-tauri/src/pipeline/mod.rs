@@ -2,8 +2,8 @@
 //! le o estado do banco, faz seu trabalho e avanca. Se o app cair, a proxima
 //! execucao continua da etapa registrada sem repetir as anteriores.
 //!
-//! Fase 2: implementada a transcricao. Diarizacao, identificacao e resumo sao
-//! marcadores que apenas avancam o estado ate serem construidos.
+//! Fase 2: transcricao e diarizacao implementadas. Identificacao de vozes e
+//! resumo sao marcadores que apenas avancam o estado ate serem construidos.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -11,9 +11,11 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
 use crate::db::meetings::{self, Stage};
+use crate::db::settings;
 use crate::db::{segments, Db};
+use crate::diarize::{self, Diarizer};
 use crate::error::{AppError, AppResult};
-use crate::models::catalog;
+use crate::models::{catalog, ModelManager};
 use crate::paths::AppPaths;
 use crate::transcribe::{self, Transcriber};
 
@@ -28,12 +30,23 @@ pub struct PipelineProgress {
 pub struct Pipeline {
     db: Db,
     paths: AppPaths,
+    models: Arc<ModelManager>,
     app: AppHandle,
 }
 
 impl Pipeline {
-    pub fn new(db: Db, paths: AppPaths, app: AppHandle) -> Self {
-        Self { db, paths, app }
+    pub fn new(
+        db: Db,
+        paths: AppPaths,
+        models: Arc<ModelManager>,
+        app: AppHandle,
+    ) -> Self {
+        Self {
+            db,
+            paths,
+            models,
+            app,
+        }
     }
 
     fn emit(&self, meeting_id: &str, stage: Stage, progress: f32, message: &str) {
@@ -70,8 +83,18 @@ impl Pipeline {
                     self.set_stage(&meeting_id, Stage::Diarizing, None)?;
                 }
                 Stage::Diarizing => {
-                    // TODO Fase 2: Sherpa-ONNX. Por ora avanca sem alterar segmentos.
-                    self.emit(&meeting_id, Stage::Diarizing, 1.0, "etapa ainda nao implementada");
+                    self.emit(&meeting_id, Stage::Diarizing, 0.0, "carregando modelos de voz");
+                    if let Err(e) = self.diarize(&meeting) {
+                        // Diarizacao falha nao invalida a transcricao: segue sem
+                        // separacao de vozes e registra o motivo.
+                        tracing::warn!(meeting = %meeting_id, "diarizacao pulada: {e}");
+                        self.emit(
+                            &meeting_id,
+                            Stage::Diarizing,
+                            1.0,
+                            &format!("separacao de vozes indisponivel: {e}"),
+                        );
+                    }
                     self.set_stage(&meeting_id, Stage::Identifying, None)?;
                 }
                 Stage::Identifying => {
@@ -147,6 +170,61 @@ impl Pipeline {
             meeting = %meeting.id,
             segmentos = new_segments.len(),
             "transcricao concluida"
+        );
+        Ok(())
+    }
+
+    fn diarize(&self, meeting: &meetings::Meeting) -> AppResult<()> {
+        let audio = meeting
+            .audio_path
+            .as_ref()
+            .ok_or_else(|| AppError::Other("reuniao sem audio".into()))?;
+        let samples = transcribe::load_mono_16k(&PathBuf::from(audio))?;
+        if samples.is_empty() {
+            return Err(AppError::Audio("audio vazio".into()));
+        }
+
+        let seg_model = self
+            .models
+            .resolve_file("sherpa-segmentation-pyannote", Some("model.onnx"))?;
+        let emb_model = self
+            .models
+            .resolve_file("sherpa-speaker-embedding-campplus", None)?;
+
+        let n = settings::load(&self.db, &self.paths)
+            .map(|s| s.participant_count as i32)
+            .unwrap_or(3);
+
+        let mut diarizer = Diarizer::load(&seg_model, &emb_model, Some(n))?;
+
+        let mid = meeting.id.clone();
+        let app = self.app.clone();
+        let voice = diarizer.run(samples, move |p| {
+            let _ = app.emit(
+                "pipeline://progress",
+                PipelineProgress {
+                    meeting_id: mid.clone(),
+                    stage: Stage::Diarizing,
+                    progress: p,
+                    message: "separando vozes".to_string(),
+                },
+            );
+        })?;
+
+        let transcript: Vec<(f64, f64)> = segments::list(&self.db, &meeting.id)?
+            .iter()
+            .map(|s| (s.start_secs, s.end_secs))
+            .collect();
+        let clusters = diarize::assign_clusters(&transcript, &voice, 0.2);
+        segments::set_clusters(&self.db, &meeting.id, &clusters)?;
+
+        let distintos: std::collections::HashSet<_> =
+            clusters.iter().flatten().collect();
+        tracing::info!(
+            meeting = %meeting.id,
+            vozes = distintos.len(),
+            spans = voice.len(),
+            "diarizacao concluida"
         );
         Ok(())
     }

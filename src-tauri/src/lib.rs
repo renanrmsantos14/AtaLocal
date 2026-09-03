@@ -1,6 +1,7 @@
 mod audio;
 mod db;
 mod diagnostics;
+mod diarize;
 mod error;
 mod models;
 mod paths;
@@ -73,6 +74,31 @@ pub mod testing {
 
         pub fn wav_to_flac(src: &Path, dst: &Path) -> AppResult<u64> {
             crate::audio::flac::wav_to_flac(src, dst)
+        }
+    }
+
+    /// Diarizacao exposta para teste de integracao (usa modelos reais).
+    pub mod diarize {
+        use std::path::Path;
+
+        use crate::diarize::Diarizer;
+        use crate::error::AppResult;
+        use crate::transcribe::load_mono_16k;
+
+        /// Roda a diarizacao e devolve (start, end, cluster) por span de voz.
+        pub fn run(
+            segmentation: &Path,
+            embedding: &Path,
+            audio: &Path,
+            num_speakers: Option<i32>,
+        ) -> AppResult<Vec<(f64, f64, i64)>> {
+            let samples = load_mono_16k(audio)?;
+            let mut d = Diarizer::load(segmentation, embedding, num_speakers)?;
+            let spans = d.run(samples, |_| {})?;
+            Ok(spans
+                .into_iter()
+                .map(|s| (s.start_secs, s.end_secs, s.cluster))
+                .collect())
         }
     }
 }
@@ -179,6 +205,7 @@ fn stop_recording(app: tauri::AppHandle, state: State<'_, AppState>) -> AppResul
     let pipeline = Arc::new(Pipeline::new(
         state.db.clone(),
         state.paths.clone(),
+        state.models.clone(),
         app.clone(),
     ));
     let id = meeting_id.clone();
@@ -235,6 +262,7 @@ fn process_meeting(
     let pipeline = Arc::new(Pipeline::new(
         state.db.clone(),
         state.paths.clone(),
+        state.models.clone(),
         app.clone(),
     ));
     std::thread::Builder::new()

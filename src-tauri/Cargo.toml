@@ -41,6 +41,8 @@ bzip2 = "0.4"
 
 # Transcricao: bindings do whisper.cpp (compila libwhisper via cmake, backend CPU)
 whisper-rs = "0.16"
+# Diarizacao: bindings do sherpa-onnx (segmentacao + embedding de voz)
+sherpa-rs = "0.6"
 
 # Download de modelos. TLS via Schannel (native-tls) para nao arrastar o crate
 # `ring`, cujo build-script e bloqueado pela politica de seguranca desta maquina.
