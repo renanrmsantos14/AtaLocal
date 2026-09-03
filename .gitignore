@@ -1,0 +1,28 @@
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Modelos e dados locais (nunca versionar)
+/models/
+/data/
+*.gguf
+*.bin
+*.onnx
+*.wav
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.log
+
+# Ambiente
+.env
+.env.*
