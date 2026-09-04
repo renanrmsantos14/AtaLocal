@@ -49,13 +49,6 @@ function ensureRuntimePermission() {
     return;
   }
 
-  const classLineMatch = activity.match(/^([ \t]*class\s+MainActivity\b[^\r\n]*)(?:\r?$)/m);
-  if (!classLineMatch || !classLineMatch[1].includes("TauriActivity") || activity.includes("override fun onCreate")) {
-    throw new Error(
-      `MainActivity.kt mudou de formato; adicione a permissao de microfone manualmente: ${activityPath}`,
-    );
-  }
-
   const packageEnd = activity.match(/^package\s+[^\r\n]+/m)?.[0];
   if (!packageEnd) {
     throw new Error(`package ausente em ${activityPath}`);
@@ -69,13 +62,31 @@ function ensureRuntimePermission() {
   ].filter((line) => !activity.includes(line));
   activity = activity.replace(packageEnd, `${packageEnd}\n${imports.join("\n")}`);
 
+  const permissionCheck = (indent) => `${indent}if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+${indent}    checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+${indent}  requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1001)
+${indent}}
+`;
+  const existingOnCreate = activity.match(/(^[ \t]*override\s+fun\s+onCreate[^\{]*\{)/m);
+  if (existingOnCreate) {
+    const functionIndent = existingOnCreate[1].match(/^[ \t]*/)?.[0] ?? "";
+    const bodyIndent = `${functionIndent}  `;
+    activity = activity.replace(existingOnCreate[1], `${existingOnCreate[1]}\n${permissionCheck(bodyIndent)}`);
+    writeFileSync(activityPath, activity);
+    return;
+  }
+
+  const classLineMatch = activity.match(/^([ \t]*class\s+MainActivity\b[^\r\n]*)(?:\r?$)/m);
+  if (!classLineMatch) {
+    throw new Error(
+      `MainActivity.kt mudou de formato; adicione a permissao de microfone manualmente: ${activityPath}`,
+    );
+  }
+
   const onCreate = `
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-        checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-      requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1001)
-    }
+${permissionCheck("    ")}
   }
 `;
   const classLine = classLineMatch[1];
