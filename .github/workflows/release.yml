@@ -121,7 +121,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang libclang-dev
-          libclang_path="$(dirname "$(find /usr/lib/llvm -type f \( -name 'libclang.so' -o -name 'libclang.so.*' \) -print -quit)")"
+          libclang_path="$(dirname "$(find /usr/lib -name 'libclang.so*' -print -quit)")"
           if [ -z "$libclang_path" ] || [ "$libclang_path" = "." ]; then
             echo "libclang nao encontrado apos a instalacao" >&2
             exit 1
