@@ -75,8 +75,8 @@ identifying, summarizing, completed, failed, cancelled` — enum `Stage` em
 - **whisper.cpp e sherpa-onnx não convivem no mesmo .exe** (crash 0x80000003).
   Solução: o `sherpa-onnx-offline-speaker-diarization.exe` roda como
   subprocesso. whisper.cpp e llama.cpp seguem como bindings compilados.
-- `src-tauri/src/diarize/mod.rs`: monta a CLI (segmentação pyannote + embedding
-  campplus, `--clustering.num-clusters` = participantes), parseia
+  - `src-tauri/src/diarize/mod.rs`: monta a CLI (segmentação pyannote + embedding
+    campplus, clustering automático por limiar), parseia
   `INICIO -- FIM speaker_NN`. `assign_clusters()` liga cada segmento de
   transcrição ao cluster de maior sobreposição (min_overlap 0.2s).
 - `db/segments.rs::set_clusters`: grava o cluster por segmento.
@@ -85,18 +85,18 @@ identifying, summarizing, completed, failed, cancelled` — enum `Stage` em
 - Catálogo: `sherpa-onnx-bin` (Tool, ~19 MB), `sherpa-segmentation-pyannote`
   (.tar.bz2 → `model.onnx`), `sherpa-speaker-embedding-campplus`. Todos com
   checksum fixado. Typo do upstream na tag: "speaker-recongition-models".
-- UI: `ResultView` mostra "Voz 1/2/3" com cor por cluster.
+- UI: `ResultView` mostra "Voz 1/2/3" com cor por cluster e permite nomear uma
+  voz; o perfil fica salvo localmente para identificação futura.
 - **Validado**: teste de integração — áudio de 2 locutores → 2 vozes em ~7s.
   Transcrição isolada (sem sherpa) também validada. 10/10 testes verdes.
 
 ### Pendente na Fase 2
 
-- [ ] Identificação de vozes — `identifying` (cadastro de perfis + associação
-      cluster→pessoa; hoje é stub). Depende da Fase 3.
-- [ ] Resumo (llama.cpp + Qwen3) — `summarizing` (hoje é stub)
-- [ ] Bug: reunião gravada antes do modelo fica `failed`; o runner deveria
-      re-tentar sozinho quando o modelo aparece (hoje precisa do botão)
+- [x] Identificação de vozes — cadastro local e associação automática
+      cluster→pessoa.
+- [x] Resumo (llama.cpp + Qwen3) — `summarizing`.
+- [x] Retomada automática de reuniões interrompidas ou sem ata.
 
-## Fase 3 — Perfis de voz  (PENDENTE)
+## Fase 3 — Perfis de voz  (FEITO)
 ## Fase 4 — Experiência principal  (PENDENTE)
 ## Fase 5 — Robustez e distribuição  (PENDENTE)

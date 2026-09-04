@@ -2,8 +2,7 @@
 //! le o estado do banco, faz seu trabalho e avanca. Se o app cair, a proxima
 //! execucao continua da etapa registrada sem repetir as anteriores.
 //!
-//! Fase 2: transcricao, diarizacao e resumo implementados. Identificacao de
-//! vozes (cluster -> pessoa) e um marcador ate a Fase 3.
+//! Fases locais: transcricao, diarizacao, identificacao de vozes e resumo.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -13,12 +12,12 @@ use tauri::{AppHandle, Emitter};
 use crate::audio::wav::WavWriter;
 use crate::audio::TARGET_SAMPLE_RATE;
 use crate::db::meetings::{self, Stage};
-use crate::db::settings;
-use crate::db::{segments, summary, Db};
+use crate::db::{segments, speakers, summary, Db};
 use crate::diarize;
 use crate::error::{AppError, AppResult};
 use crate::models::{catalog, ModelManager};
 use crate::paths::AppPaths;
+use crate::speaker;
 use crate::summarize::{LabeledLine, Summarizer};
 use crate::transcribe::{self, Transcriber};
 
@@ -101,20 +100,36 @@ impl Pipeline {
                     self.set_stage(&meeting_id, Stage::Identifying, None)?;
                 }
                 Stage::Identifying => {
-                    self.emit(&meeting_id, Stage::Identifying, 1.0, "etapa ainda nao implementada");
+                    self.emit(
+                        &meeting_id,
+                        Stage::Identifying,
+                        0.0,
+                        "comparando vozes cadastradas",
+                    );
+                    if let Err(e) = self.identify(&meeting) {
+                        tracing::warn!(meeting = %meeting_id, "identificacao de vozes pulada: {e}");
+                        self.emit(
+                            &meeting_id,
+                            Stage::Identifying,
+                            1.0,
+                            &format!("identificação indisponível: {e}"),
+                        );
+                    }
                     self.set_stage(&meeting_id, Stage::Summarizing, None)?;
                 }
                 Stage::Summarizing => {
-                    self.emit(&meeting_id, Stage::Summarizing, 0.0, "carregando modelo de resumo");
+                    self.emit(
+                        &meeting_id,
+                        Stage::Summarizing,
+                        0.0,
+                        "carregando modelo de resumo",
+                    );
                     if let Err(e) = self.summarize(&meeting) {
-                        // Resumo falho nao invalida a transcricao/diarizacao.
-                        tracing::warn!(meeting = %meeting_id, "resumo pulado: {e}");
-                        self.emit(
-                            &meeting_id,
-                            Stage::Summarizing,
-                            1.0,
-                            &format!("ata indisponivel: {e}"),
-                        );
+                        let message = format!("ata nao gerada: {e}");
+                        self.set_stage(&meeting_id, Stage::Failed, Some(&message))?;
+                        tracing::error!(meeting = %meeting_id, "{message}");
+                        self.emit(&meeting_id, Stage::Summarizing, 1.0, &message);
+                        return Err(e);
                     }
                     self.set_stage(&meeting_id, Stage::Completed, None)?;
                 }
@@ -234,17 +249,12 @@ impl Pipeline {
             Some("bin/sherpa-onnx-offline-speaker-diarization.exe"),
         )?;
 
-        let n = settings::load(&self.db, &self.paths)
-            .map(|s| s.participant_count as i32)
-            .unwrap_or(3);
-
         // O exe le WAV; escreve um temporario mono 16 kHz a partir do audio.
-        let tmp_wav = std::env::temp_dir()
-            .join(format!("atalocal-diarize-{}.wav", meeting.id));
+        let tmp_wav = std::env::temp_dir().join(format!("atalocal-diarize-{}.wav", meeting.id));
         write_wav_mono16k(&tmp_wav, &samples)?;
 
         self.emit(&meeting.id, Stage::Diarizing, 0.3, "separando vozes");
-        let voice = diarize::run(&exe, &seg_model, &emb_model, &tmp_wav, Some(n));
+        let voice = diarize::run(&exe, &seg_model, &emb_model, &tmp_wav, None);
         let _ = std::fs::remove_file(&tmp_wav);
         let voice = voice?;
 
@@ -263,6 +273,87 @@ impl Pipeline {
             spans = voice.len(),
             "diarizacao concluida"
         );
+        Ok(())
+    }
+
+    fn identify(&self, meeting: &meetings::Meeting) -> AppResult<()> {
+        let all_segments = segments::list(&self.db, &meeting.id)?;
+        let clusters: Vec<i64> = all_segments
+            .iter()
+            .filter_map(|segment| segment.cluster)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        if clusters.is_empty() {
+            return Ok(());
+        }
+
+        let profiles = speakers::list_embeddings(&self.db)?;
+        if profiles.is_empty() {
+            self.emit(
+                &meeting.id,
+                Stage::Identifying,
+                1.0,
+                "nenhuma voz cadastrada",
+            );
+            return Ok(());
+        }
+
+        let audio = meeting
+            .audio_path
+            .as_ref()
+            .ok_or_else(|| AppError::Other("reuniao sem audio".into()))?;
+        let samples = transcribe::load_mono_16k(&PathBuf::from(audio))?;
+        let (embedding_model, library) = speaker::model_paths(&self.models)?;
+        let helper = speaker::helper_executable()?;
+        let mut matches = Vec::with_capacity(clusters.len());
+
+        for (index, cluster) in clusters.iter().enumerate() {
+            let ranges: Vec<(f64, f64)> = all_segments
+                .iter()
+                .filter(|segment| segment.cluster == Some(*cluster))
+                .map(|segment| (segment.start_secs, segment.end_secs))
+                .collect();
+            let cluster_samples = speaker::samples_for_ranges(&samples, &ranges);
+            let embedding = match speaker::extract_isolated(
+                &helper,
+                &library,
+                &embedding_model,
+                &cluster_samples,
+            ) {
+                Ok(embedding) => embedding,
+                Err(error) => {
+                    tracing::debug!(
+                        meeting = %meeting.id,
+                        cluster,
+                        "cluster sem amostra suficiente para identificação: {error}"
+                    );
+                    matches.push((*cluster, None, 0.0));
+                    continue;
+                }
+            };
+            let best = profiles
+                .iter()
+                .filter_map(|profile| {
+                    speaker::cosine_similarity(&embedding, &profile.embedding)
+                        .map(|score| (profile, score))
+                })
+                .max_by(|(_, left), (_, right)| left.total_cmp(right));
+            let (speaker_id, confidence) = match best {
+                Some((profile, score)) if score >= 0.60 => (Some(profile.id.clone()), score),
+                _ => (None, 0.0),
+            };
+            matches.push((*cluster, speaker_id, confidence));
+            self.emit(
+                &meeting.id,
+                Stage::Identifying,
+                (index + 1) as f32 / clusters.len() as f32,
+                "comparando vozes",
+            );
+        }
+
+        segments::set_speaker_matches(&self.db, &meeting.id, &matches)?;
+        tracing::info!(meeting = %meeting.id, clusters = clusters.len(), "identificacao de vozes concluida");
         Ok(())
     }
 
@@ -294,10 +385,10 @@ impl Pipeline {
             .map(|s| LabeledLine {
                 start_secs: s.start_secs,
                 speaker: s
-                    .speaker_id
+                    .speaker_name
                     .clone()
                     .or_else(|| s.cluster.map(|c| format!("Voz {}", c + 1)))
-                    .unwrap_or_else(|| "Nao identificado".into()),
+                    .unwrap_or_else(|| "Voz não identificada".into()),
                 text: s.text.clone(),
             })
             .collect();

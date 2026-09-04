@@ -4,13 +4,13 @@
 
 `sherpa-rs` 0.6 (bindings do sherpa-onnx), diarização offline:
 **segmentação pyannote-3.0** + **embedding de locutor campplus** (3D-Speaker,
-zh+en, treino avançado), clustering rápido com **número de clusters fixado no
-número de participantes cadastrados** (`AppSettings::participant_count`, padrão 3).
+zh+en, treino avançado), clustering rápido com limiar automático. A quantidade
+de participantes não é configurada por reunião.
 
 ## Por quê
 
-- O plano fixa "número conhecido de participantes = 3" → `num_clusters` em vez
-  de limiar evita que ruído vire uma 4ª voz.
+- As reuniões podem ter quantidades diferentes de pessoas; o modo automático
+  usa `cluster-threshold=0.90` e evita exigir uma contagem prévia.
 - `campplus_..._advanced` é multilíngue (pt não tem modelo dedicado no catálogo
   do Sherpa; o zh+en advanced generaliza melhor que os só-zh).
 - `min_duration_on 0.3` / `min_duration_off 0.5`: numa sala presencial, exigir
@@ -24,10 +24,12 @@ número de participantes cadastrados** (`AppSettings::participant_count`, padrã
    maior sobreposição temporal; < 0.2 s de sobreposição → `None`
    ("Não identificado", sem adivinhação — como pede o plano).
 4. `segments.set_clusters` grava o cluster por segmento.
+5. A etapa `identifying` extrai uma impressão de cada cluster e compara com os
+   perfis cadastrados localmente; só associa um nome quando a similaridade
+   passa do limiar de segurança.
 
-A **identificação nominal** (cluster → pessoa cadastrada) é etapa separada
-(`identifying`), depende dos perfis de voz da Fase 3, e usa atribuição global
-para não repetir nome.
+A pessoa pode nomear um cluster na própria transcrição. O app salva a impressão
+de voz e reaproveita o perfil nas reuniões seguintes.
 
 ## Robustez
 

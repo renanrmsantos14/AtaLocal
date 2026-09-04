@@ -49,6 +49,8 @@ export interface TranscriptSegment {
   cluster: number | null;
   /** Perfil de pessoa associado, ou null se "Não identificado". */
   speaker_id: string | null;
+  /** Nome do perfil associado, quando a voz foi reconhecida. */
+  speaker_name: string | null;
   /** Confiança da atribuição de voz, 0..1. */
   confidence: number;
 }
@@ -110,7 +112,6 @@ export interface AppSettings {
   data_dir: string;
   models_dir: string;
   low_power_mode: boolean;
-  participant_count: number;
 }
 
 // ---- Diagnóstico ----

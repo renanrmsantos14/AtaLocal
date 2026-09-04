@@ -7,6 +7,7 @@ mod models;
 mod paths;
 mod pipeline;
 mod session;
+mod speaker;
 mod summarize;
 mod transcribe;
 
@@ -134,24 +135,45 @@ pub mod testing {
             audio: &Path,
             num_speakers: Option<i32>,
         ) -> AppResult<Vec<(f64, f64, i64)>> {
-            let spans =
-                crate::diarize::run(exe, segmentation, embedding, audio, num_speakers)?;
+            let spans = crate::diarize::run(exe, segmentation, embedding, audio, num_speakers)?;
             Ok(spans
                 .into_iter()
                 .map(|s| (s.start_secs, s.end_secs, s.cluster))
                 .collect())
         }
     }
+
+    /// Extracao de embedding exposta para teste de integracao.
+    pub mod speaker {
+        use std::path::Path;
+
+        use crate::error::AppResult;
+        use crate::speaker;
+        use crate::transcribe;
+
+        pub fn run(
+            executable: &Path,
+            model: &Path,
+            library: &Path,
+            audio: &Path,
+        ) -> AppResult<usize> {
+            let samples = transcribe::load_mono_16k(audio)?;
+            speaker::extract_isolated(executable, library, model, &samples)
+                .map(|embedding| embedding.len())
+        }
+    }
 }
 
 use std::sync::Arc;
 
-use tauri::{Emitter, Manager, State};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::db::meetings::{self, Meeting};
 use crate::db::segments::{self, TranscriptSegment};
-use crate::db::summary::{self, StoredActionItem, StoredSummary};
 use crate::db::settings::{self, AppSettings, SettingsPatch};
+use crate::db::speakers::{self, SpeakerProfile};
+use crate::db::summary::{self, StoredActionItem, StoredSummary};
 use crate::db::Db;
 use crate::pipeline::Pipeline;
 use crate::diagnostics::SystemDiagnostics;
@@ -166,6 +188,36 @@ struct AppState {
     db: Db,
     models: Arc<ModelManager>,
     session: Arc<SessionManager>,
+}
+
+const MAX_LOG_BYTES: u64 = 5 * 1024 * 1024;
+
+#[derive(Debug, Clone, Serialize)]
+struct LogInfo {
+    bytes: u64,
+    max_bytes: u64,
+}
+
+fn cap_log_file(path: &std::path::Path) -> AppResult<()> {
+    use std::io::{Read, Seek, SeekFrom};
+
+    let size = match std::fs::metadata(path) {
+        Ok(metadata) => metadata.len(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    if size <= MAX_LOG_BYTES {
+        return Ok(());
+    }
+    let keep_bytes = MAX_LOG_BYTES / 2;
+    let mut file = std::fs::File::open(path)?;
+    file.seek(SeekFrom::Start(size.saturating_sub(keep_bytes)))?;
+    let mut tail = Vec::with_capacity(keep_bytes as usize);
+    file.read_to_end(&mut tail)?;
+    let mut output = b"[log reduzido pelo limite de 5 MB]\n".to_vec();
+    output.extend_from_slice(&tail);
+    std::fs::write(path, output)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -184,6 +236,23 @@ fn get_logs(state: State<'_, AppState>) -> AppResult<String> {
     let bytes = std::fs::read(path)?;
     let start = bytes.len().saturating_sub(MAX_BYTES);
     Ok(String::from_utf8_lossy(&bytes[start..]).into_owned())
+}
+
+#[tauri::command]
+fn get_log_info(state: State<'_, AppState>) -> AppResult<LogInfo> {
+    let path = state.paths.logs_dir.join("atalocal.log");
+    let bytes = std::fs::metadata(path)
+        .map(|metadata| metadata.len())
+        .unwrap_or(0);
+    Ok(LogInfo {
+        bytes,
+        max_bytes: MAX_LOG_BYTES,
+    })
+}
+
+#[tauri::command]
+fn list_speaker_profiles(state: State<'_, AppState>) -> AppResult<Vec<SpeakerProfile>> {
+    speakers::list(&state.db)
 }
 
 #[tauri::command]
@@ -314,10 +383,41 @@ fn list_segments(
 }
 
 #[tauri::command]
-fn get_summary(
+fn enroll_speaker_from_meeting(
     state: State<'_, AppState>,
     meeting_id: String,
-) -> AppResult<Option<StoredSummary>> {
+    cluster: i64,
+    name: String,
+) -> AppResult<SpeakerProfile> {
+    let meeting = meetings::get(&state.db, &meeting_id)?;
+    let audio = meeting
+        .audio_path
+        .as_ref()
+        .ok_or_else(|| crate::error::AppError::Other("reuniao sem audio".into()))?;
+    let all_segments = segments::list(&state.db, &meeting_id)?;
+    let ranges: Vec<(f64, f64)> = all_segments
+        .iter()
+        .filter(|segment| segment.cluster == Some(cluster))
+        .map(|segment| (segment.start_secs, segment.end_secs))
+        .collect();
+    if ranges.is_empty() {
+        return Err(crate::error::AppError::Other(
+            "essa voz ainda nao tem segmentos identificados".into(),
+        ));
+    }
+
+    let samples = transcribe::load_mono_16k(&std::path::PathBuf::from(audio))?;
+    let selected = speaker::samples_for_ranges(&samples, &ranges);
+    let (embedding_model, library) = speaker::model_paths(&state.models)?;
+    let helper = speaker::helper_executable()?;
+    let embedding = speaker::extract_isolated(&helper, &library, &embedding_model, &selected)?;
+    let profile = speakers::upsert(&state.db, &name, &embedding)?;
+    segments::set_speaker_for_cluster(&state.db, &meeting_id, cluster, &profile.id, 1.0)?;
+    Ok(profile)
+}
+
+#[tauri::command]
+fn get_summary(state: State<'_, AppState>, meeting_id: String) -> AppResult<Option<StoredSummary>> {
     summary::get(&state.db, &meeting_id)
 }
 
@@ -354,8 +454,14 @@ fn process_meeting(
 }
 
 pub fn run() {
+    if std::env::args().nth(1).as_deref() == Some("--speaker-helper") {
+        std::process::exit(speaker::run_helper(std::env::args()));
+    }
+
     let paths = AppPaths::resolve().expect("nao foi possivel preparar os diretorios locais");
 
+    let log_path = paths.logs_dir.join("atalocal.log");
+    let _ = cap_log_file(&log_path);
     let file_appender = tracing_appender::rolling::never(&paths.logs_dir, "atalocal.log");
     let (log_writer, _log_guard) = tracing_appender::non_blocking(file_appender);
     let _ = tracing_subscriber::fmt()
@@ -401,6 +507,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             run_diagnostics,
             get_logs,
+            get_log_info,
+            list_speaker_profiles,
+            enroll_speaker_from_meeting,
             list_models,
             whisper_options,
             download_model,

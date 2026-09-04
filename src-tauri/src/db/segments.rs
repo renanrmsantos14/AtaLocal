@@ -12,6 +12,7 @@ pub struct TranscriptSegment {
     pub text: String,
     pub cluster: Option<i64>,
     pub speaker_id: Option<String>,
+    pub speaker_name: Option<String>,
     pub confidence: f64,
 }
 
@@ -53,8 +54,11 @@ pub fn replace_all(db: &Db, meeting_id: &str, segments: &[NewSegment]) -> AppRes
 pub fn list(db: &Db, meeting_id: &str) -> AppResult<Vec<TranscriptSegment>> {
     db.with(|conn| {
         let mut stmt = conn.prepare(
-            "SELECT id, meeting_id, start_secs, end_secs, text, cluster, speaker_id, confidence
-             FROM transcript_segment WHERE meeting_id = ?1 ORDER BY start_secs",
+            "SELECT s.id, s.meeting_id, s.start_secs, s.end_secs, s.text, s.cluster,
+                    s.speaker_id, p.name, s.confidence
+             FROM transcript_segment s
+             LEFT JOIN speaker_profile p ON p.id = s.speaker_id
+             WHERE s.meeting_id = ?1 ORDER BY s.start_secs",
         )?;
         let rows = stmt
             .query_map([meeting_id], |r| {
@@ -66,11 +70,53 @@ pub fn list(db: &Db, meeting_id: &str) -> AppResult<Vec<TranscriptSegment>> {
                     text: r.get(4)?,
                     cluster: r.get(5)?,
                     speaker_id: r.get(6)?,
-                    confidence: r.get(7)?,
+                    speaker_name: r.get(7)?,
+                    confidence: r.get(8)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
+    })
+}
+
+/// Associa um perfil e a confiança aos segmentos de um cluster.
+pub fn set_speaker_for_cluster(
+    db: &Db,
+    meeting_id: &str,
+    cluster: i64,
+    speaker_id: &str,
+    confidence: f64,
+) -> AppResult<()> {
+    db.with(|conn| {
+        conn.execute(
+            "UPDATE transcript_segment
+             SET speaker_id = ?3, confidence = ?4
+             WHERE meeting_id = ?1 AND cluster = ?2",
+            (meeting_id, cluster, speaker_id, confidence),
+        )?;
+        Ok(())
+    })
+}
+
+/// Atualiza a identificação de cada cluster. `matches` traz (cluster, perfil, confiança).
+pub fn set_speaker_matches(
+    db: &Db,
+    meeting_id: &str,
+    matches: &[(i64, Option<String>, f64)],
+) -> AppResult<()> {
+    db.with(|conn| {
+        let tx = conn.unchecked_transaction()?;
+        let mut stmt = tx.prepare(
+            "UPDATE transcript_segment
+             SET speaker_id = ?3, confidence = ?4
+             WHERE meeting_id = ?1 AND cluster = ?2",
+        )?;
+        for (cluster, speaker_id, confidence) in matches {
+            stmt.execute((meeting_id, cluster, speaker_id, confidence))?;
+        }
+        drop(stmt);
+        tx.commit()?;
+        Ok(())
     })
 }
 
@@ -89,8 +135,7 @@ pub fn set_clusters(db: &Db, meeting_id: &str, clusters: &[Option<i64>]) -> AppR
             rows
         };
         {
-            let mut upd =
-                tx.prepare("UPDATE transcript_segment SET cluster = ?2 WHERE id = ?1")?;
+            let mut upd = tx.prepare("UPDATE transcript_segment SET cluster = ?2 WHERE id = ?1")?;
             for (id, cluster) in ids.iter().zip(clusters.iter()) {
                 upd.execute((id, cluster))?;
             }

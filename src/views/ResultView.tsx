@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, events, type PipelineProgress } from "../api";
 import type {
@@ -42,6 +42,10 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
   const [actions, setActions] = useState<StoredActionItem[]>([]);
   const [progress, setProgress] = useState<PipelineProgress | null>(null);
   const [tab, setTab] = useState<"transcript" | "summary" | "tasks">("summary");
+  const [editingCluster, setEditingCluster] = useState<number | null>(null);
+  const [speakerName, setSpeakerName] = useState("");
+  const [speakerError, setSpeakerError] = useState<string | null>(null);
+  const [enrolling, setEnrolling] = useState(false);
   const pollRef = useRef<number | null>(null);
 
   async function refresh() {
@@ -81,6 +85,27 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
     await api.meetings.process(meetingId);
     if (!pollRef.current) pollRef.current = window.setInterval(refresh, 1500);
   }
+
+  async function enrollSpeaker(event: FormEvent, cluster: number) {
+    event.preventDefault();
+    if (!speakerName.trim()) return;
+    setEnrolling(true);
+    setSpeakerError(null);
+    try {
+      await api.speakers.enrollFromMeeting(meetingId, cluster, speakerName);
+      setEditingCluster(null);
+      setSpeakerName("");
+      await refresh();
+    } catch (error) {
+      setSpeakerError(String(error));
+    } finally {
+      setEnrolling(false);
+    }
+  }
+
+  const transcriptClusters = Array.from(
+    new Set(segments.flatMap((segment) => segment.cluster == null ? [] : [segment.cluster])),
+  ).sort((a, b) => a - b);
 
   return (
     <section className={`result-page result-${variant}`}>
@@ -138,6 +163,52 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
 
       {tab === "transcript" && (
         <div className="card">
+          {transcriptClusters.length > 0 && !processing && (
+            <div className="transcript-speakers">
+              <div>
+                <h2>Pessoas</h2>
+                <p className="muted speaker-help">
+                  Nomeie uma voz uma vez. A impressão fica salva neste computador e será usada nas próximas reuniões.
+                </p>
+              </div>
+              {speakerError && <p className="speaker-error" role="alert">{speakerError}</p>}
+              {transcriptClusters.map((cluster) => {
+                const sample = segments.find((segment) => segment.cluster === cluster);
+                const label = sample?.speaker_name ?? `Voz ${cluster + 1}`;
+                return (
+                  <div className="transcript-speaker" key={cluster}>
+                    <span style={{ color: clusterColor(cluster) }}>{label}</span>
+                    {!sample?.speaker_name && (editingCluster === cluster ? (
+                      <form className="speaker-form" onSubmit={(event) => enrollSpeaker(event, cluster)}>
+                        <input
+                          autoFocus
+                          aria-label={`Nome da ${label}`}
+                          placeholder="Nome da pessoa"
+                          value={speakerName}
+                          maxLength={80}
+                          onChange={(event) => setSpeakerName(event.target.value)}
+                        />
+                        <button className="primary" disabled={enrolling} type="submit">
+                          {enrolling ? "Salvando…" : "Salvar voz"}
+                        </button>
+                        <button className="secondary-button" disabled={enrolling} type="button" onClick={() => setEditingCluster(null)}>
+                          Cancelar
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => { setEditingCluster(cluster); setSpeakerName(""); setSpeakerError(null); }}
+                      >
+                        Nomear e salvar voz
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {segments.length === 0 && (
             <p className="muted">
               {processing
@@ -160,8 +231,8 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
                 {ts(s.start_secs)}
               </span>
               <span>
-                {s.speaker_id ? (
-                  <b style={{ color: clusterColor(s.cluster) }}>{s.speaker_id}: </b>
+                {s.speaker_name ? (
+                  <b style={{ color: clusterColor(s.cluster) }}>{s.speaker_name}: </b>
                 ) : s.cluster != null ? (
                   <b style={{ color: clusterColor(s.cluster) }}>
                     Voz {s.cluster + 1}:{" "}
@@ -188,7 +259,7 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
           {summary && (
             <>
               <div className="card">
-                <h2>Resumo executivo</h2>
+                <h2>Resumo</h2>
                 <p>{summary.executive_summary}</p>
               </div>
               {summary.topics.length > 0 && (

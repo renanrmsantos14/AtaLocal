@@ -3,7 +3,7 @@ import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
 import { api } from "../api";
-import type { AppSettings, WhisperOption, ModelInfo } from "../types";
+import type { AppSettings, WhisperOption, ModelInfo, SpeakerProfile } from "../types";
 
 type UpdateState =
   | { kind: "idle" }
@@ -20,6 +20,7 @@ export function SettingsView() {
   const [upd, setUpd] = useState<UpdateState>({ kind: "idle" });
   const [whisper, setWhisper] = useState<WhisperOption[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [speakers, setSpeakers] = useState<SpeakerProfile[]>([]);
 
   async function loadModels() {
     try {
@@ -30,10 +31,19 @@ export function SettingsView() {
     }
   }
 
+  async function loadSpeakers() {
+    try {
+      setSpeakers(await api.speakers.list());
+    } catch {
+      /* ignore */
+    }
+  }
+
   useEffect(() => {
     api.settings.get().then(setSettings).catch(() => {});
     getVersion().then(setVersion).catch(() => {});
     loadModels();
+    loadSpeakers();
   }, []);
 
   const downloaded = (id: string) =>
@@ -194,19 +204,10 @@ export function SettingsView() {
 
       <div className="card">
         <h2>Reunião</h2>
-        <label className="row" style={{ border: 0 }}>
-          <span>Participantes por reunião</span>
-          <input
-            type="number"
-            min={1}
-            max={8}
-            value={settings.participant_count}
-            onChange={(e) =>
-              save({ participant_count: Number(e.target.value) })
-            }
-            style={inputStyle}
-          />
-        </label>
+        <div className="row" style={{ border: 0 }}>
+          <span>Separação de vozes</span>
+          <span className="muted">automática</span>
+        </div>
         <label className="row">
           <span>Modo de baixo consumo</span>
           <input
@@ -234,6 +235,26 @@ export function SettingsView() {
           <span>Pasta de dados</span>
           <span className="muted mono">{settings.data_dir}</span>
         </div>
+      </div>
+
+      <div className="card">
+        <h2>Vozes cadastradas</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Depois de uma reunião, abra a aba Transcrição e nomeie cada voz uma vez.
+          O cadastro fica somente neste computador.
+        </p>
+        {speakers.length === 0 ? (
+          <p className="muted">Nenhuma voz cadastrada ainda.</p>
+        ) : (
+          speakers.map((speaker) => (
+            <div className="row" key={speaker.id}>
+              <span style={{ color: speaker.color, fontWeight: 700 }}>{speaker.name}</span>
+              <span className="muted mono">
+                {speaker.sample_count} {speaker.sample_count === 1 ? "amostra" : "amostras"}
+              </span>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="card">

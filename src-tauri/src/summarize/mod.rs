@@ -22,6 +22,25 @@ pub struct LabeledLine {
     pub text: String,
 }
 
+const SUMMARY_SYSTEM: &str =
+    "Voce redige atas internas da Auto Prime Locações em portugues do Brasil. \
+    Entregue um registro claro, firme e verificavel da reuniao. Responda SOMENTE \
+    com um objeto JSON valido, sem texto antes ou depois, usando as chaves: \
+    executive_summary (string), topics (array de string), decisions (array de \
+    {text, timestamp}), action_items (array de {description, assignee, due}), \
+    pending (array de {text, timestamp}), divergences (array de {text, timestamp}), \
+    next_steps (array de string). O campo executive_summary e apenas o resumo geral \
+    da reuniao; nao use a expressao resumo executivo. Resuma o contexto e os pontos \
+    confirmados em 2 a 5 frases, sem propaganda e sem linguagem generica. Registre \
+    uma decisao somente quando houver confirmacao explicita. Registre uma tarefa \
+    somente quando houver compromisso ou encaminhamento claro; responsavel e prazo \
+    devem ser null quando nao forem ditos. Pendencias sao assuntos ainda sem definicao. \
+    Divergencias sao discordancias relevantes que permaneceram abertas. Preserve nomes, \
+    datas, horarios, valores e numeros como aparecem na transcricao. Nao invente fatos, \
+    responsaveis, prazos, decisoes ou proximos passos. Use arrays vazios e null onde \
+    nao houver informacao. Elimine repeticoes, corrija a organizacao e mantenha o tom \
+    operacional e objetivo.";
+
 /// Aceita `null` como o valor padrao do tipo (o LLM as vezes emite null onde
 /// pedimos um array ou string).
 fn null_to_default<'de, D, T>(d: D) -> Result<T, D::Error>
@@ -111,36 +130,35 @@ impl Summarizer {
             .collect::<Vec<_>>()
             .join("\n");
         let blocks = split_words(&full, 1800);
-        let total_steps = blocks.len() + 1;
-
-        // 2. Extrai notas de cada bloco.
-        let mut notes = Vec::with_capacity(blocks.len());
-        for (i, block) in blocks.iter().enumerate() {
-            on_progress(i as f32 / total_steps as f32);
-            let sys = "Voce e um assistente que extrai fatos objetivos de trechos de \
-                reuniao em portugues. Liste em topicos: decisoes tomadas, tarefas \
-                atribuidas (com responsavel e prazo se ditos), pendencias e \
-                divergencias. Nao invente responsavel, prazo ou decisao que nao \
-                esteja explicito. Se algo nao foi dito, escreva 'Nao informado'.";
+        // Para reunioes curtas, uma inferencia evita gerar notas intermediarias
+        // e reduz pela metade o tempo de espera do usuario.
+        let raw = if blocks.len() == 1 {
+            on_progress(0.05);
             let prompt = format!(
-                "Trecho da reuniao:\n\n{block}\n\nExtraia os fatos deste trecho em topicos."
+                "Transcricao da reuniao:\n\n{}\n\nGere a ata em JSON.",
+                blocks[0]
             );
-            notes.push(self.infer(sys, &prompt, 700)?);
-        }
+            self.infer(SUMMARY_SYSTEM, &prompt, 900)?
+        } else {
+            let total_steps = blocks.len() + 1;
 
-        // 3. Consolida numa ata JSON.
-        on_progress(blocks.len() as f32 / total_steps as f32);
-        let joined = notes.join("\n\n---\n\n");
-        let sys = "Voce consolida notas de uma reuniao numa ata final em portugues. \
-            Responda SOMENTE com um objeto JSON valido, sem texto antes ou depois, \
-            com as chaves: executive_summary (string), topics (array de string), \
-            decisions (array de {text, timestamp}), action_items (array de \
-            {description, assignee, due}), pending (array de {text, timestamp}), \
-            divergences (array de {text, timestamp}), next_steps (array de string). \
-            Use null onde nao houver informacao. Nao invente nada que nao esteja \
-            nas notas.";
-        let prompt = format!("Notas da reuniao:\n\n{joined}\n\nGere a ata em JSON.");
-        let raw = self.infer(sys, &prompt, 1500)?;
+            // Reunioes longas passam por extracao em blocos para caber no contexto.
+            let mut notes = Vec::with_capacity(blocks.len());
+            for (i, block) in blocks.iter().enumerate() {
+                on_progress(i as f32 / total_steps as f32);
+                let sys = "Voce extrai fatos objetivos de uma reuniao em portugues. \
+                    Liste decisoes, tarefas, pendencias e divergencias. Nao invente \
+                    responsavel, prazo ou decisao. Seja conciso.";
+                let prompt =
+                    format!("Trecho da reuniao:\n\n{block}\n\nExtraia os fatos deste trecho.");
+                notes.push(self.infer(sys, &prompt, 450)?);
+            }
+
+            on_progress(blocks.len() as f32 / total_steps as f32);
+            let joined = notes.join("\n\n---\n\n");
+            let prompt = format!("Notas da reuniao:\n\n{joined}\n\nGere a ata em JSON.");
+            self.infer(SUMMARY_SYSTEM, &prompt, 1000)?
+        };
 
         on_progress(1.0);
         parse_minutes(&raw)

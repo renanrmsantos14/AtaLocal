@@ -3,6 +3,7 @@ import { api } from "../api";
 
 export function LogsView() {
   const [logs, setLogs] = useState("");
+  const [info, setInfo] = useState<{ bytes: number; max_bytes: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -10,7 +11,9 @@ export function LogsView() {
     setLoading(true);
     setError(null);
     try {
-      setLogs(await api.logs.get());
+      const [content, details] = await Promise.all([api.logs.get(), api.logs.info()]);
+      setLogs(content);
+      setInfo(details);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -33,6 +36,11 @@ export function LogsView() {
       <button className="primary" onClick={refresh} disabled={loading}>
         {loading ? "Carregando…" : "Atualizar logs"}
       </button>
+      {info && (
+        <p className="muted mono" style={{ margin: "12px 0 0" }}>
+          Espaço usado pelo log: {formatBytes(info.bytes)} de {formatBytes(info.max_bytes)}
+        </p>
+      )}
 
       {error && (
         <div className="card" style={{ marginTop: 16 }}>
@@ -50,4 +58,10 @@ export function LogsView() {
       </div>
     </>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

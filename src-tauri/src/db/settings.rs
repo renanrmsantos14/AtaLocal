@@ -12,7 +12,6 @@ pub struct AppSettings {
     pub data_dir: String,
     pub models_dir: String,
     pub low_power_mode: bool,
-    pub participant_count: i64,
 }
 
 impl AppSettings {
@@ -25,7 +24,6 @@ impl AppSettings {
             data_dir: paths.data_dir.to_string_lossy().into_owned(),
             models_dir: paths.models_dir.to_string_lossy().into_owned(),
             low_power_mode: false,
-            participant_count: 3,
         }
     }
 }
@@ -37,7 +35,6 @@ pub struct SettingsPatch {
     pub whisper_model: Option<String>,
     pub retention_days: Option<Option<i64>>,
     pub low_power_mode: Option<bool>,
-    pub participant_count: Option<i64>,
 }
 
 const KEY: &str = "app_settings";
@@ -75,11 +72,7 @@ pub fn save(db: &Db, settings: &AppSettings) -> AppResult<()> {
     })
 }
 
-pub fn apply_patch(
-    db: &Db,
-    paths: &AppPaths,
-    patch: SettingsPatch,
-) -> AppResult<AppSettings> {
+pub fn apply_patch(db: &Db, paths: &AppPaths, patch: SettingsPatch) -> AppResult<AppSettings> {
     let mut s = load(db, paths)?;
     if let Some(v) = patch.input_device {
         s.input_device = v;
@@ -92,9 +85,6 @@ pub fn apply_patch(
     }
     if let Some(v) = patch.low_power_mode {
         s.low_power_mode = v;
-    }
-    if let Some(v) = patch.participant_count {
-        s.participant_count = v.clamp(1, 8);
     }
     save(db, &s)?;
     Ok(s)

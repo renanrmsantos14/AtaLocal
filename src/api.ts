@@ -10,6 +10,7 @@ import type {
   MeetingSummary,
   StoredActionItem,
   WhisperOption,
+  SpeakerProfile,
 } from "./types";
 
 export const api = {
@@ -19,6 +20,17 @@ export const api = {
 
   logs: {
     get: () => invoke<string>("get_logs"),
+    info: () => invoke<{ bytes: number; max_bytes: number }>("get_log_info"),
+  },
+
+  speakers: {
+    list: () => invoke<SpeakerProfile[]>("list_speaker_profiles"),
+    enrollFromMeeting: (meetingId: string, cluster: number, name: string) =>
+      invoke<SpeakerProfile>("enroll_speaker_from_meeting", {
+        meetingId,
+        cluster,
+        name,
+      }),
   },
 
   models: {
