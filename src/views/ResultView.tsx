@@ -35,7 +35,7 @@ function clusterColor(c: number | null): string {
   return c == null ? "var(--text-dim)" : CLUSTER_COLORS[c % CLUSTER_COLORS.length];
 }
 
-export function ResultView({ meetingId }: { meetingId: string }) {
+export function ResultView({ meetingId, variant = "foco" }: { meetingId: string; variant?: "foco" | "painel" }) {
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [summary, setSummary] = useState<MeetingSummary | null>(null);
@@ -83,12 +83,15 @@ export function ResultView({ meetingId }: { meetingId: string }) {
   }
 
   return (
-    <>
-      <h1>{meeting.title}</h1>
-      <p className="muted mono">
+    <section className={`result-page result-${variant}`}>
+      <div className="result-heading">
+        <div><div className="eyebrow">ata local</div><h1>{meeting.title}</h1>
+        <p className="muted mono">
         {new Date(meeting.started_at).toLocaleString("pt-BR")} ·{" "}
         {Math.round(meeting.duration_secs / 60)} min
-      </p>
+        </p></div>
+        <div className="result-actions"><button className="secondary-button">Exportar .md</button><button className="secondary-button">Copiar ata</button></div>
+      </div>
 
       {processing && (
         <div className="card">
@@ -119,20 +122,14 @@ export function ResultView({ meetingId }: { meetingId: string }) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 4, margin: "16px 0" }}>
+      <div className="result-tabs" role="tablist" aria-label="Conteúdo da reunião">
         {(["transcript", "summary", "tasks"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={tab === t ? "active" : ""}
-            style={{
-              background: tab === t ? "var(--panel-2)" : "transparent",
-              border: "1px solid var(--border)",
-              color: tab === t ? "var(--text)" : "var(--text-dim)",
-              borderRadius: 6,
-              padding: "6px 14px",
-              cursor: "pointer",
-            }}
+            className={tab === t ? "result-tab active" : "result-tab"}
+            role="tab"
+            aria-selected={tab === t}
           >
             {t === "transcript" ? "Transcrição" : t === "summary" ? "Ata" : "Tarefas"}
           </button>
@@ -272,6 +269,6 @@ export function ResultView({ meetingId }: { meetingId: string }) {
           ))}
         </div>
       )}
-    </>
+    </section>
   );
 }

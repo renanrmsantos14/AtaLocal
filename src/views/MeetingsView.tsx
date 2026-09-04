@@ -22,9 +22,11 @@ function fmtDur(secs: number) {
 export function MeetingsView({
   refreshKey,
   onOpen,
+  variant = "foco",
 }: {
   refreshKey: number;
   onOpen: (id: string) => void;
+  variant?: "foco" | "painel";
 }) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -49,27 +51,31 @@ export function MeetingsView({
   }
 
   return (
-    <>
-      <h1>Reuniões</h1>
+    <section className={`meetings-page meetings-${variant}`}>
+      <div className="page-heading page-heading-split">
+        <div><div className="eyebrow">histórico local</div><h1>Reuniões</h1><p className="page-lede">Tudo que foi gravado neste computador.</p></div>
+        <button className="secondary-button" onClick={load}>Atualizar</button>
+      </div>
       {error && (
-        <div className="card">
+        <div className="error-box">
           <span className="badge fail">erro</span>
           <p className="mono">{error}</p>
         </div>
       )}
       {meetings.length === 0 && (
-        <p className="muted">Nenhuma reunião ainda.</p>
+        <div className="empty-state"><span className="empty-orb" /><p>Nenhuma reunião ainda.</p><span>Grave sua primeira reunião para vê-la aqui.</span></div>
       )}
+      <div className="meeting-list">
       {meetings.map((m) => {
         const st = STAGE_LABEL[m.stage] ?? { text: m.stage, cls: "warn" };
         return (
           <div
-            className="card"
+            className="meeting-item"
             key={m.id}
             onClick={() => onOpen(m.id)}
             style={{ cursor: "pointer" }}
           >
-            <div className="row" style={{ border: 0 }}>
+            <div className="meeting-main">
               <div>
                 <div>{m.title}</div>
                 <div className="muted mono">
@@ -82,8 +88,9 @@ export function MeetingsView({
                   </div>
                 )}
               </div>
-              <div style={{ textAlign: "right" }}>
+              <div className="meeting-status">
                 <span className={`badge ${st.cls}`}>{st.text}</span>
+                <div className="meeting-arrow">→</div>
                 <div>
                   <button
                     onClick={(e) => del(e, m.id)}
@@ -104,6 +111,7 @@ export function MeetingsView({
           </div>
         );
       })}
-    </>
+      </div>
+    </section>
   );
 }

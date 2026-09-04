@@ -17,7 +17,17 @@ const SIGNAL_LABEL: Record<RecordingState["signal"], { text: string; cls: string
   sem_sinal: { text: "sem sinal", cls: "warn" },
 };
 
-export function RecordView({ onFinished }: { onFinished: (meetingId: string) => void }) {
+const WAVE = [14, 28, 20, 42, 31, 54, 24, 38, 17, 46, 28, 62, 34, 23, 48, 30, 68, 39, 22, 51, 30, 45, 19, 56, 36, 25, 49, 32, 64, 27, 43, 18, 37, 26];
+
+function Waveform({ active = false }: { active?: boolean }) {
+  return (
+    <div className={`waveform ${active ? "waveform-active" : ""}`} aria-hidden="true">
+      {WAVE.map((height, index) => <span key={index} style={{ height: `${height}%`, animationDelay: `${index * 18}ms` }} />)}
+    </div>
+  );
+}
+
+export function RecordView({ onFinished, variant = "foco" }: { onFinished: (meetingId: string) => void; variant?: "foco" | "painel" }) {
   const [devices, setDevices] = useState<SystemDiagnostics["input_devices"]>([]);
   const [device, setDevice] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -101,131 +111,59 @@ export function RecordView({ onFinished }: { onFinished: (meetingId: string) => 
   }
 
   const isRecording = !!meeting && !!rec?.recording;
-  const level = rec?.level ?? 0;
-  const peak = rec?.peak ?? 0;
+
+  const signal = rec ? SIGNAL_LABEL[rec.signal] : { text: "pronto para testar", cls: "ok" };
+
+  if (isRecording) {
+    return (
+      <section className={`recording-stage ${variant === "painel" ? "recording-panel" : ""}`}>
+        <div className="recording-status"><span className="recording-dot" /> gravando</div>
+        <div className="recording-time">{fmtDuration(rec?.duration_secs ?? 0)}</div>
+        <div className="recording-title">{meeting?.title}</div>
+        <Waveform active />
+        <div className="signal-line"><span className={`signal-dot ${signal.cls}`} />{signal.text}<span className="mono">{device}</span></div>
+        <div className="recording-actions">
+          <button className="primary" onClick={stop} disabled={busy}>Encerrar e gerar a ata</button>
+          <button className="secondary-button" onClick={cancel} disabled={busy}>Descartar</button>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <>
-      <h1>{isRecording ? "Gravando reunião" : "Nova reunião"}</h1>
-
-      {error && (
-        <div className="card">
-          <span className="badge fail">erro</span>
-          <p className="mono">{error}</p>
-        </div>
-      )}
-
-      {!isRecording && (
-        <div className="card">
-          <h2>Antes de começar</h2>
-          <label className="row" style={{ border: 0 }}>
-            <span>Título (opcional)</span>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Reunião de …"
-              style={{
-                background: "var(--panel-2)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: 6,
-                padding: "6px 10px",
-                width: 280,
-              }}
-            />
-          </label>
-          <label className="row">
-            <span>Microfone</span>
-            <select
-              value={device ?? ""}
-              onChange={(e) => setDevice(e.target.value || null)}
-              style={{
-                background: "var(--panel-2)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: 6,
-                padding: "6px 10px",
-                width: 280,
-              }}
-            >
-              {devices.map((d) => (
-                <option key={d.name} value={d.name}>
-                  {d.name}
-                  {d.is_default ? " (padrão)" : ""}
-                </option>
-              ))}
+    <section className={`record-page ${variant === "foco" ? "record-page-focus" : ""}`}>
+      {variant === "foco" ? (
+        <div className="record-focus-content">
+          <div className="eyebrow">nova reunião</div>
+          <h1>Comece uma conversa.</h1>
+          <p className="page-lede">Grave, transcreva e gere uma ata sem sair deste computador.</p>
+          <input className="focus-title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Reunião de …" aria-label="Título da reunião" />
+          <div className="focus-mic-row">
+            <select value={device ?? ""} onChange={(e) => setDevice(e.target.value || null)} aria-label="Microfone">
+              {devices.length === 0 && <option value="">Nenhum microfone detectado</option>}
+              {devices.map((d) => <option key={d.name} value={d.name}>{d.name}{d.is_default ? " — padrão" : ""}</option>)}
             </select>
-          </label>
-          <div style={{ marginTop: 16 }}>
-            <button className="primary" onClick={start} disabled={busy || !device}>
-              Iniciar reunião
-            </button>
+            <span className={`badge ${signal.cls}`}>{signal.text}</span>
           </div>
+          <button className="record-button" onClick={start} disabled={busy || !device} aria-label="Iniciar gravação">GRAVAR</button>
+          <p className="privacy-note">O áudio, a transcrição e as vozes ficam apenas neste computador.</p>
         </div>
+      ) : (
+        <>
+          <div className="page-heading">
+            <div><div className="eyebrow">gravação local</div><h1>Nova reunião</h1><p className="page-lede">Confirme o microfone antes de começar.</p></div>
+          </div>
+          <div className="record-grid">
+            <div className="card setup-card">
+              <label className="form-row"><span>Título</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Reunião de …" /></label>
+              <label className="form-row"><span>Microfone</span><select value={device ?? ""} onChange={(e) => setDevice(e.target.value || null)}>{devices.length === 0 && <option value="">Nenhum microfone detectado</option>}{devices.map((d) => <option key={d.name} value={d.name}>{d.name}{d.is_default ? " — padrão" : ""}</option>)}</select></label>
+              <div className="form-row"><span>Privacidade</span><span className="muted">100% neste computador</span></div>
+            </div>
+            <div className="card mic-test-card"><div className="eyebrow">teste de microfone</div><Waveform /><div className="signal-line"><span className="signal-dot ok" />{signal.text}</div><button className="primary" onClick={start} disabled={busy || !device}>Iniciar reunião</button></div>
+          </div>
+        </>
       )}
-
-      {isRecording && (
-        <div className="card">
-          <div className="row" style={{ border: 0 }}>
-            <div>
-              <div style={{ fontSize: 32, fontVariantNumeric: "tabular-nums" }}>
-                {fmtDuration(rec?.duration_secs ?? 0)}
-              </div>
-              <div className="muted">{meeting?.title}</div>
-            </div>
-            <span className="badge fail" style={{ alignSelf: "start" }}>
-              ● REC
-            </span>
-          </div>
-
-          <div style={{ marginTop: 20 }}>
-            <div className="muted mono" style={{ marginBottom: 4 }}>
-              nível do microfone
-            </div>
-            <div
-              className="progress"
-              style={{ height: 14, background: "var(--panel-2)" }}
-            >
-              <div
-                style={{
-                  width: `${Math.min(100, level * 140)}%`,
-                  background:
-                    peak >= 0.98 ? "var(--fail)" : "var(--ok)",
-                  transition: "width .1s",
-                }}
-              />
-            </div>
-            {rec && (
-              <div
-                className={`badge ${SIGNAL_LABEL[rec.signal].cls}`}
-                style={{ marginTop: 8, display: "inline-block" }}
-              >
-                {SIGNAL_LABEL[rec.signal].text}
-              </div>
-            )}
-          </div>
-
-          <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
-            <button className="primary" onClick={stop} disabled={busy}>
-              Encerrar e processar
-            </button>
-            <button
-              onClick={cancel}
-              disabled={busy}
-              style={{
-                background: "transparent",
-                border: "1px solid var(--border)",
-                color: "var(--text-dim)",
-                borderRadius: 6,
-                padding: "8px 16px",
-                cursor: "pointer",
-              }}
-            >
-              Descartar
-            </button>
-          </div>
-        </div>
-      )}
-    </>
+      {error && <div className="error-box"><span className="badge fail">erro</span><p className="mono">{error}</p></div>}
+    </section>
   );
 }
