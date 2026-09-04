@@ -1,4 +1,4 @@
-//! Resumo / ata: executa o `llama-cli.exe` (llama.cpp) como subprocesso com o
+//! Resumo / ata: executa o `llama-cli` (llama.cpp) como subprocesso com o
 //! modelo Qwen3-4B. llama.cpp embarca ggml e conflita com o whisper.cpp no
 //! mesmo executavel — por isso, subprocesso (mesma razao do sherpa, ADR 0005).
 //!
@@ -224,18 +224,15 @@ fn split_words(text: &str, per_block: usize) -> Vec<String> {
     if words.len() <= per_block {
         return vec![text.to_string()];
     }
-    words
-        .chunks(per_block)
-        .map(|c| c.join(" "))
-        .collect()
+    words.chunks(per_block).map(|c| c.join(" ")).collect()
 }
 
 /// Extrai o primeiro objeto JSON balanceado do texto (o modelo as vezes
 /// adiciona comentarios antes/depois apesar da instrucao).
 fn parse_minutes(raw: &str) -> AppResult<MeetingMinutes> {
-    let start = raw.find('{').ok_or_else(|| {
-        AppError::Other(format!("resumo sem JSON: {}", truncate(raw, 200)))
-    })?;
+    let start = raw
+        .find('{')
+        .ok_or_else(|| AppError::Other(format!("resumo sem JSON: {}", truncate(raw, 200))))?;
     let mut depth = 0i32;
     let mut end = None;
     for (i, ch) in raw[start..].char_indices() {
@@ -251,9 +248,14 @@ fn parse_minutes(raw: &str) -> AppResult<MeetingMinutes> {
             _ => {}
         }
     }
-    let json = &raw[start..end.ok_or_else(|| AppError::Other("JSON incompleto no resumo".into()))?];
-    serde_json::from_str::<MeetingMinutes>(json)
-        .map_err(|e| AppError::Other(format!("JSON invalido do resumo: {e}; {}", truncate(json, 300))))
+    let json =
+        &raw[start..end.ok_or_else(|| AppError::Other("JSON incompleto no resumo".into()))?];
+    serde_json::from_str::<MeetingMinutes>(json).map_err(|e| {
+        AppError::Other(format!(
+            "JSON invalido do resumo: {e}; {}",
+            truncate(json, 300)
+        ))
+    })
 }
 
 fn truncate(s: &str, n: usize) -> String {
@@ -266,17 +268,28 @@ fn write_file(path: &Path, content: &str) -> AppResult<()> {
     Ok(())
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "android"))]
 fn prepend_path(cmd: &mut Command, dir: &Path) {
+    #[cfg(windows)]
     let existing = std::env::var_os("PATH").unwrap_or_default();
+    #[cfg(target_os = "android")]
+    let existing = std::env::var_os("LD_LIBRARY_PATH")
+        .or_else(|| std::env::var_os("PATH"))
+        .unwrap_or_default();
     let mut paths = vec![dir.to_path_buf()];
     paths.extend(std::env::split_paths(&existing));
     if let Ok(joined) = std::env::join_paths(paths) {
+        #[cfg(windows)]
+        cmd.env("PATH", joined.clone());
+        #[cfg(target_os = "android")]
+        {
+            cmd.env("LD_LIBRARY_PATH", joined.clone());
+        }
         cmd.env("PATH", joined);
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "android")))]
 fn prepend_path(_cmd: &mut Command, _dir: &Path) {}
 
 #[cfg(test)]
@@ -298,7 +311,10 @@ mod tests {
 
     #[test]
     fn divide_em_blocos_por_palavras() {
-        let text = (0..5000).map(|i| i.to_string()).collect::<Vec<_>>().join(" ");
+        let text = (0..5000)
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
         let blocks = split_words(&text, 1800);
         assert_eq!(blocks.len(), 3);
     }

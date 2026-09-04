@@ -33,6 +33,11 @@ pub fn run(
     audio: &Path,
     num_speakers: Option<i32>,
 ) -> AppResult<Vec<VoiceSpan>> {
+    #[cfg(target_os = "android")]
+    return Err(AppError::Model(
+        "separacao de vozes ainda nao esta disponivel no Android".into(),
+    ));
+
     for (label, p) in [
         ("executavel de diarizacao", exe),
         ("modelo de segmentacao", segmentation),

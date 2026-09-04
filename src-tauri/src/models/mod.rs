@@ -119,25 +119,40 @@ impl ModelManager {
         self.dir.join(format!("{}.part", def.filename))
     }
 
-    /// Diretorio onde um `.tar.bz2` foi extraido (achatado): `models/<id>/`.
+    /// Diretorio onde um pacote foi extraido: `models/<id>/`.
     pub fn extracted_dir(&self, id: &str) -> PathBuf {
         self.dir.join(id)
     }
 
     /// Caminho utilizavel de um modelo ja baixado:
     /// - arquivo unico: o proprio arquivo;
-    /// - `.tar.bz2`: `models/<id>/<sub>` (ou o unico `.onnx` da pasta se `sub` = None).
+    /// - pacote (`.tar.bz2`, `.tar.gz` ou `.zip`): `models/<id>/<sub>` (ou o
+    ///   unico `.onnx` da pasta se `sub` = None).
     pub fn resolve_file(&self, id: &str, sub: Option<&str>) -> AppResult<PathBuf> {
-        let def = catalog::find(id)
-            .ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
-        if def.filename.ends_with(".tar.bz2") || def.filename.ends_with(".zip") {
+        let def =
+            catalog::find(id).ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
+        if is_archive(def.filename) {
             let base = self.extracted_dir(id);
             if let Some(s) = sub {
                 let p = base.join(s);
-                return if p.exists() {
-                    Ok(p)
-                } else {
-                    Err(AppError::Model(format!("arquivo ausente: {}", p.display())))
+                if p.exists() {
+                    return Ok(p);
+                }
+                let filename = std::path::Path::new(s)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or_else(|| AppError::Model(format!("subcaminho invalido: {s}")))?;
+                let matches = find_files_named(&base, filename)?;
+                return match matches.as_slice() {
+                    [one] => Ok(one.clone()),
+                    [] => Err(AppError::Model(format!(
+                        "arquivo ausente: {}",
+                        p.display()
+                    ))),
+                    _ => Err(AppError::Model(format!(
+                        "varios arquivos chamados {filename} em {}; especifique",
+                        base.display()
+                    ))),
                 };
             }
             // Sem sub: procura o unico .onnx.
@@ -198,7 +213,13 @@ impl ModelManager {
         })
     }
 
-    fn save_state(&self, id: &str, st: ModelStatus, bytes: u64, err: Option<&str>) -> AppResult<()> {
+    fn save_state(
+        &self,
+        id: &str,
+        st: ModelStatus,
+        bytes: u64,
+        err: Option<&str>,
+    ) -> AppResult<()> {
         let now = chrono::Utc::now().to_rfc3339();
         self.db.with(|conn| {
             conn.execute(
@@ -264,7 +285,8 @@ impl ModelManager {
     where
         F: Fn(DownloadProgress) + Send + Sync + 'static,
     {
-        let def = catalog::find(id).ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
+        let def =
+            catalog::find(id).ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
         let final_path = self.path_of(def);
         let part_path = self.part_path_of(def);
 
@@ -296,7 +318,17 @@ impl ModelManager {
 
         self.save_state(id, ModelStatus::Downloading, existing, None)?;
 
-        let resp = req.send().await?.error_for_status()?;
+        let mut resp = req.send().await?;
+        if resp.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE && existing > 0 {
+            // O servidor pode rejeitar a retomada quando `.part` ja esta no fim
+            // do objeto ou quando o tamanho local ficou defasado. Recomeça para
+            // evitar transformar uma retomada invalida em erro permanente.
+            let _ = std::fs::remove_file(&part_path);
+            existing = 0;
+            self.save_state(id, ModelStatus::Downloading, 0, None)?;
+            resp = client.get(def.url).send().await?;
+        }
+        let resp = resp.error_for_status()?;
         let resumed = resp.status() == reqwest::StatusCode::PARTIAL_CONTENT;
         let total = if resumed {
             existing + resp.content_length().unwrap_or(0)
@@ -363,7 +395,12 @@ impl ModelManager {
 
         let digest = sha256_file(&part_path).await?;
         if !def.sha256.is_empty() && digest != def.sha256 {
-            self.save_state(id, ModelStatus::Corrupt, written, Some("checksum divergente"))?;
+            self.save_state(
+                id,
+                ModelStatus::Corrupt,
+                written,
+                Some("checksum divergente"),
+            )?;
             let _ = std::fs::remove_file(&part_path);
             return Err(AppError::Checksum {
                 id: id.to_string(),
@@ -377,19 +414,30 @@ impl ModelManager {
 
         std::fs::rename(&part_path, &final_path)?;
 
-        // Pacotes de ferramentas: Sherpa em .tar.bz2, llama.cpp em .zip.
+        // Pacotes de ferramentas: Sherpa em .tar.bz2, llama.cpp em .zip ou
+        // .tar.gz no Android.
         // Extrai numa pasta com o id (achatando um diretorio-raiz unico).
-        let ext = final_path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        if ext == "bz2" || ext == "zip" {
+        if is_archive(def.filename) {
             let dest = self.dir.join(id);
-            let result = if ext == "bz2" {
+            let result = if def.filename.ends_with(".tar.bz2") {
                 extract_tar_bz2(&final_path, &dest)
+            } else if def.filename.ends_with(".tar.gz") {
+                extract_tar_gz(&final_path, &dest)
             } else {
                 extract_zip(&final_path, &dest)
             };
             if let Err(e) = result {
-                self.save_state(id, ModelStatus::Failed, def.size_bytes, Some(&e.to_string()))?;
+                self.save_state(
+                    id,
+                    ModelStatus::Failed,
+                    def.size_bytes,
+                    Some(&e.to_string()),
+                )?;
                 return Err(e);
+            }
+            #[cfg(target_os = "android")]
+            if id == "llama-cpp-bin" {
+                make_android_tools_executable(&dest)?;
             }
         }
 
@@ -405,7 +453,8 @@ impl ModelManager {
     }
 
     pub async fn verify(&self, id: &str) -> AppResult<ModelInfo> {
-        let def = catalog::find(id).ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
+        let def =
+            catalog::find(id).ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
         let path = self.path_of(def);
         if !path.exists() {
             self.save_state(id, ModelStatus::NotDownloaded, 0, None)?;
@@ -424,7 +473,8 @@ impl ModelManager {
     }
 
     pub fn remove(&self, id: &str) -> AppResult<()> {
-        let def = catalog::find(id).ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
+        let def =
+            catalog::find(id).ok_or_else(|| AppError::Model(format!("id desconhecido: {id}")))?;
         let _ = std::fs::remove_file(self.path_of(def));
         let _ = std::fs::remove_file(self.part_path_of(def));
         self.save_state(id, ModelStatus::NotDownloaded, 0, None)?;
@@ -473,12 +523,39 @@ fn extract_tar_bz2(archive: &std::path::Path, dest: &std::path::Path) -> AppResu
     Ok(())
 }
 
+/// Extrai o pacote Android do llama.cpp. Diferentemente do pacote do Sherpa,
+/// ele pode ter os arquivos diretamente na raiz; por isso nao remove o primeiro
+/// componente do caminho.
+fn extract_tar_gz(archive: &std::path::Path, dest: &std::path::Path) -> AppResult<()> {
+    let file = std::fs::File::open(archive)?;
+    let decompressor = flate2::read::GzDecoder::new(file);
+    let mut tar = tar::Archive::new(decompressor);
+
+    let _ = std::fs::remove_dir_all(dest);
+    std::fs::create_dir_all(dest)?;
+
+    for entry in tar.entries().map_err(AppError::Io)? {
+        let mut entry = entry.map_err(AppError::Io)?;
+        let rel = entry.path().map_err(AppError::Io)?.into_owned();
+        let out = dest.join(rel);
+        if entry.header().entry_type().is_dir() {
+            std::fs::create_dir_all(&out)?;
+        } else {
+            if let Some(parent) = out.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            entry.unpack(&out).map_err(AppError::Io)?;
+        }
+    }
+    Ok(())
+}
+
 /// Extrai um `.zip` para `dest`. O zip do llama.cpp poe tudo na raiz (sem
 /// diretorio-pai), entao nao achata nada.
 fn extract_zip(archive: &std::path::Path, dest: &std::path::Path) -> AppResult<()> {
     let file = std::fs::File::open(archive)?;
-    let mut zip = zip::ZipArchive::new(file)
-        .map_err(|e| AppError::Model(format!("zip invalido: {e}")))?;
+    let mut zip =
+        zip::ZipArchive::new(file).map_err(|e| AppError::Model(format!("zip invalido: {e}")))?;
 
     let _ = std::fs::remove_dir_all(dest);
     std::fs::create_dir_all(dest)?;
@@ -517,4 +594,44 @@ async fn sha256_file(path: &std::path::Path) -> AppResult<String> {
         hasher.update(&buf[..n]);
     }
     Ok(hex::encode(hasher.finalize()))
+}
+
+fn is_archive(filename: &str) -> bool {
+    filename.ends_with(".tar.bz2") || filename.ends_with(".tar.gz") || filename.ends_with(".zip")
+}
+
+fn find_files_named(root: &std::path::Path, filename: &str) -> AppResult<Vec<PathBuf>> {
+    let mut matches = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        for entry in std::fs::read_dir(dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.file_name().and_then(|name| name.to_str()) == Some(filename) {
+                matches.push(path);
+            }
+        }
+    }
+    Ok(matches)
+}
+
+#[cfg(target_os = "android")]
+fn make_android_tools_executable(root: &std::path::Path) -> AppResult<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        for entry in std::fs::read_dir(dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.file_name().and_then(|n| n.to_str()) == Some("llama-cli") {
+                let mut permissions = std::fs::metadata(&path)?.permissions();
+                permissions.set_mode(permissions.mode() | 0o111);
+                std::fs::set_permissions(path, permissions)?;
+            }
+        }
+    }
+    Ok(())
 }

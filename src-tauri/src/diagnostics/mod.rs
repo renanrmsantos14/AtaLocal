@@ -1,5 +1,7 @@
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde::Serialize;
+#[cfg(not(windows))]
+use sysinfo::Disks;
 use sysinfo::System;
 
 use crate::error::AppResult;
@@ -79,8 +81,14 @@ fn free_space_bytes(path: &std::path::Path) -> u64 {
 }
 
 #[cfg(not(windows))]
-fn free_space_bytes(_path: &std::path::Path) -> u64 {
-    0
+fn free_space_bytes(path: &std::path::Path) -> u64 {
+    let disks = Disks::new_with_refreshed_list();
+    disks
+        .iter()
+        .filter(|disk| path.starts_with(disk.mount_point()))
+        .max_by_key(|disk| disk.mount_point().components().count())
+        .map(|disk| disk.available_space())
+        .unwrap_or(0)
 }
 
 fn enumerate_input_devices() -> Vec<AudioDevice> {

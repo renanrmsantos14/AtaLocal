@@ -26,6 +26,7 @@ const KIND_LABEL: Record<ModelInfo["kind"], string> = {
 export function ModelsView() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [progress, setProgress] = useState<Record<string, DownloadProgress>>({});
+  const [verifying, setVerifying] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -58,6 +59,19 @@ export function ModelsView() {
     }
   }
 
+  async function verify(id: string) {
+    setError(null);
+    setVerifying((current) => ({ ...current, [id]: true }));
+    try {
+      await api.models.verify(id);
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setVerifying((current) => ({ ...current, [id]: false }));
+    }
+  }
+
   return (
     <>
       <h1>Modelos locais</h1>
@@ -76,6 +90,7 @@ export function ModelsView() {
       {models.map((m) => {
         const p = progress[m.id];
         const downloading = p?.status === "downloading" || p?.status === "verifying";
+        const checking = verifying[m.id] === true;
         const done = m.downloaded_bytes || p?.downloaded_bytes || 0;
         const total = m.size_bytes || p?.total_bytes || 1;
         const pct = Math.min(100, (done / total) * 100);
@@ -91,16 +106,26 @@ export function ModelsView() {
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
-                {m.status === "ready" ? (
-                  <span className="badge ok">pronto</span>
-                ) : downloading ? (
+                {downloading || checking ? (
                   <span className="badge warn">
-                    {p?.status === "verifying" ? "verificando" : "baixando"}
+                    {checking || p?.status === "verifying" ? "verificando" : "baixando"}
                   </span>
                 ) : (
-                  <button className="primary" onClick={() => download(m.id)}>
-                    Baixar
-                  </button>
+                  <>
+                    {m.status === "ready" && <span className="badge ok">pronto</span>}
+                    {m.status !== "ready" && (
+                      <button className="primary" onClick={() => download(m.id)}>
+                        Baixar
+                      </button>
+                    )}
+                    <button
+                      className="primary"
+                      style={{ marginLeft: 8 }}
+                      onClick={() => verify(m.id)}
+                    >
+                      Verificar
+                    </button>
+                  </>
                 )}
               </div>
             </div>

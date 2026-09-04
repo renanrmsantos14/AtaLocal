@@ -99,6 +99,9 @@ pub const CATALOG: &[ModelDef] = &[
         }),
     },
     // ---- Diarizacao (Sherpa-ONNX) ----
+    // O fluxo atual usa o executavel desktop do Sherpa. No Android ele nao
+    // entra no catalogo ate haver um binding nativo empacotado no APK.
+    #[cfg(not(target_os = "android"))]
     // O tag de release do upstream tem um typo: "speaker-recongition-models".
     ModelDef {
         id: "sherpa-segmentation-pyannote",
@@ -109,6 +112,7 @@ pub const CATALOG: &[ModelDef] = &[
         size_bytes: 6_958_444,
         profile: None,
     },
+    #[cfg(not(target_os = "android"))]
     ModelDef {
         id: "sherpa-speaker-embedding-campplus",
         kind: ModelKind::Embedding,
@@ -120,6 +124,7 @@ pub const CATALOG: &[ModelDef] = &[
     },
     // Executavel de diarizacao (roda como subprocesso — ver ADR 0005).
     // Build "shared-MD-Release-no-tts": traz o .exe + onnxruntime.dll.
+    #[cfg(target_os = "windows")]
     ModelDef {
         id: "sherpa-onnx-bin",
         kind: ModelKind::Tool,
@@ -130,6 +135,7 @@ pub const CATALOG: &[ModelDef] = &[
         profile: None,
     },
     // ---- Resumo (llama.cpp — roda como subprocesso, ADR 0005) ----
+    #[cfg(target_os = "windows")]
     ModelDef {
         id: "llama-cpp-bin",
         kind: ModelKind::Tool,
@@ -137,6 +143,18 @@ pub const CATALOG: &[ModelDef] = &[
         url: "https://github.com/ggml-org/llama.cpp/releases/download/b10793/llama-b10793-bin-win-cpu-x64.zip",
         sha256: "da6c5650bb1c97a81bc0c1594137d614bd566b8a54161898325e22f925271d7b",
         size_bytes: 18_389_766,
+        profile: None,
+    },
+    #[cfg(target_os = "android")]
+    ModelDef {
+        id: "llama-cpp-bin",
+        kind: ModelKind::Tool,
+        filename: "llama-b10793-bin-android-arm64.tar.gz",
+        url: "https://github.com/ggml-org/llama.cpp/releases/download/b10793/llama-b10793-bin-android-arm64.tar.gz",
+        sha256: "9e0c0ca7f8913e0f6072529b81d858a52a2c7d62e9c5582d9e3f2c0bbf364093",
+        // Tamanho usado apenas como estimativa inicial na UI; o total real
+        // vem do Content-Length do download.
+        size_bytes: 74_400_000,
         profile: None,
     },
     ModelDef {

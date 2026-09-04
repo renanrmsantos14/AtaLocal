@@ -50,7 +50,10 @@ pub mod testing {
 
     /// (id, url, tamanho declarado em bytes) de cada modelo do catalogo.
     pub fn model_catalog() -> Vec<(&'static str, &'static str, u64)> {
-        CATALOG.iter().map(|m| (m.id, m.url, m.size_bytes)).collect()
+        CATALOG
+            .iter()
+            .map(|m| (m.id, m.url, m.size_bytes))
+            .collect()
     }
 
     /// Utilitarios de audio expostos para teste (sem abrir o microfone).
@@ -175,11 +178,11 @@ use crate::db::settings::{self, AppSettings, SettingsPatch};
 use crate::db::speakers::{self, SpeakerProfile};
 use crate::db::summary::{self, StoredActionItem, StoredSummary};
 use crate::db::Db;
-use crate::pipeline::Pipeline;
 use crate::diagnostics::SystemDiagnostics;
 use crate::error::AppResult;
 use crate::models::{ModelInfo, ModelManager};
 use crate::paths::AppPaths;
+use crate::pipeline::Pipeline;
 use crate::session::{RecordingState, SessionManager};
 
 /// Estado global compartilhado entre os comandos.
@@ -302,10 +305,7 @@ fn get_settings(state: State<'_, AppState>) -> AppResult<AppSettings> {
 }
 
 #[tauri::command]
-fn update_settings(
-    state: State<'_, AppState>,
-    patch: SettingsPatch,
-) -> AppResult<AppSettings> {
+fn update_settings(state: State<'_, AppState>, patch: SettingsPatch) -> AppResult<AppSettings> {
     settings::apply_patch(&state.db, &state.paths, patch)
 }
 
@@ -328,24 +328,39 @@ fn start_recording(
     state.session.start(&title, device)
 }
 
-#[tauri::command]
-fn stop_recording(app: tauri::AppHandle, state: State<'_, AppState>) -> AppResult<String> {
-    let meeting_id = state.session.stop()?;
-    // Dispara o processamento em seguida (transcricao -> ...).
-    let pipeline = Arc::new(Pipeline::new(
-        state.db.clone(),
-        state.paths.clone(),
-        state.models.clone(),
-        app.clone(),
-    ));
-    let id = meeting_id.clone();
-    let _ = std::thread::Builder::new()
+fn spawn_pipeline(app: &AppHandle, state: &AppState, meeting_id: String) -> AppResult<()> {
+    let app = app.clone();
+    let db = state.db.clone();
+    let paths = state.paths.clone();
+    let models = state.models.clone();
+    std::thread::Builder::new()
         .name("atalocal-pipeline".into())
         .spawn(move || {
-            if let Err(e) = pipeline.run(id.clone()) {
-                tracing::error!(meeting = %id, "pipeline falhou: {e}");
-            }
-        });
+            run_pipeline(app, db, paths, models, meeting_id);
+        })
+        .map(|_| ())
+        .map_err(|e| crate::error::AppError::Other(e.to_string()))
+}
+
+fn run_pipeline(
+    app: AppHandle,
+    db: crate::db::Db,
+    paths: AppPaths,
+    models: Arc<ModelManager>,
+    meeting_id: String,
+) {
+    let id = meeting_id.clone();
+    let pipeline = Arc::new(Pipeline::new(db, paths, models, app));
+    if let Err(e) = pipeline.run(meeting_id) {
+        tracing::error!(meeting = %id, "pipeline falhou: {e}");
+    }
+}
+
+#[tauri::command]
+fn stop_recording(app: AppHandle, state: State<'_, AppState>) -> AppResult<String> {
+    let meeting_id = state.session.stop()?;
+    // Dispara o processamento em seguida (transcricao -> ...).
+    spawn_pipeline(&app, &state, meeting_id.clone())?;
     Ok(meeting_id)
 }
 
@@ -432,25 +447,70 @@ fn list_actions(
 /// Inicia (ou retoma) o processamento de uma reuniao numa thread dedicada.
 #[tauri::command]
 fn process_meeting(
-    app: tauri::AppHandle,
+    app: AppHandle,
     state: State<'_, AppState>,
     meeting_id: String,
 ) -> AppResult<()> {
-    let pipeline = Arc::new(Pipeline::new(
-        state.db.clone(),
-        state.paths.clone(),
-        state.models.clone(),
-        app.clone(),
-    ));
-    std::thread::Builder::new()
-        .name("atalocal-pipeline".into())
+    let meeting = meetings::get(&state.db, &meeting_id)?;
+    if meeting.stage == meetings::Stage::Completed
+        && summary::get(&state.db, &meeting_id)?.is_none()
+    {
+        meetings::set_stage(&state.db, &meeting_id, meetings::Stage::Summarizing, None)?;
+    } else if meeting.stage == meetings::Stage::Failed {
+        let stage = if meeting
+            .error
+            .as_deref()
+            .is_some_and(|e| e.contains("ata nao gerada"))
+        {
+            meetings::Stage::Summarizing
+        } else {
+            meetings::Stage::Finalizing
+        };
+        meetings::set_stage(&state.db, &meeting_id, stage, None)?;
+    }
+    spawn_pipeline(&app, &state, meeting_id)
+}
+
+fn resume_stale_pipelines(app: &AppHandle, state: &AppState) {
+    let Ok(list) = meetings::list(&state.db) else {
+        return;
+    };
+    let mut ids = Vec::new();
+    for meeting in list {
+        if matches!(
+            meeting.stage,
+            meetings::Stage::Finalizing
+                | meetings::Stage::Transcribing
+                | meetings::Stage::Diarizing
+                | meetings::Stage::Identifying
+                | meetings::Stage::Summarizing
+        ) {
+            ids.push(meeting.id);
+        } else if meeting.stage == meetings::Stage::Completed
+            && matches!(summary::get(&state.db, &meeting.id), Ok(None))
+            && segments::count(&state.db, &meeting.id).unwrap_or(0) > 0
+        {
+            let _ = meetings::set_stage(&state.db, &meeting.id, meetings::Stage::Summarizing, None);
+            ids.push(meeting.id);
+        }
+    }
+
+    if ids.is_empty() {
+        return;
+    }
+
+    let app = app.clone();
+    let db = state.db.clone();
+    let paths = state.paths.clone();
+    let models = state.models.clone();
+    let _ = std::thread::Builder::new()
+        .name("atalocal-pipeline-recovery".into())
         .spawn(move || {
-            if let Err(e) = pipeline.run(meeting_id.clone()) {
-                tracing::error!(meeting = %meeting_id, "pipeline falhou: {e}");
+            for id in ids {
+                run_pipeline(app.clone(), db.clone(), paths.clone(), models.clone(), id);
             }
         })
-        .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
-    Ok(())
+        .map_err(|e| tracing::error!("retomada dos pipelines falhou: {e}"));
 }
 
 pub fn run() {
@@ -466,8 +526,7 @@ pub fn run() {
     let (log_writer, _log_guard) = tracing_appender::non_blocking(file_appender);
     let _ = tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .with_writer(log_writer)
         .try_init();
@@ -479,7 +538,10 @@ pub fn run() {
     // Reuniao deixada em 'recording' por um fechamento abrupto nao tem como
     // continuar gravando; marca como 'failed' recuperavel na proxima abertura.
     if let Ok(list) = meetings::list(&db) {
-        for m in list.into_iter().filter(|m| m.stage == meetings::Stage::Recording) {
+        for m in list
+            .into_iter()
+            .filter(|m| m.stage == meetings::Stage::Recording)
+        {
             let _ = meetings::set_stage(
                 &db,
                 &m.id,
@@ -496,12 +558,14 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(move |app| {
-            app.manage(AppState {
+            let state = AppState {
                 paths: paths.clone(),
                 db: db.clone(),
                 models: models.clone(),
                 session: session.clone(),
-            });
+            };
+            resume_stale_pipelines(app.handle(), &state);
+            app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

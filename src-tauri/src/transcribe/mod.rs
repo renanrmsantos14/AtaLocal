@@ -3,9 +3,7 @@
 
 use std::path::Path;
 
-use whisper_rs::{
-    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters,
-};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 use crate::error::{AppError, AppResult};
 
@@ -31,11 +29,8 @@ impl Transcriber {
             )));
         }
         let model_str = model_path.to_string_lossy().into_owned();
-        let ctx = WhisperContext::new_with_params(
-            &model_str,
-            WhisperContextParameters::default(),
-        )
-        .map_err(|e| AppError::Other(format!("falha ao carregar whisper: {e}")))?;
+        let ctx = WhisperContext::new_with_params(&model_str, WhisperContextParameters::default())
+            .map_err(|e| AppError::Other(format!("falha ao carregar whisper: {e}")))?;
         Ok(Self { ctx })
     }
 
@@ -56,7 +51,8 @@ impl Transcriber {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
-        params.set_token_timestamps(true);
+        // A aplicação usa os timestamps dos segmentos; timestamps por token
+        // adicionam custo sem melhorar o resultado exibido.
         // whisper.cpp tem VAD interno de silencio nas bordas via no_speech_thold.
         params.set_no_speech_thold(0.6);
         params.set_suppress_blank(true);
@@ -121,9 +117,12 @@ fn read_wav_pcm16_mono(path: &Path) -> AppResult<Vec<f32>> {
     let (mut start, mut end) = (0usize, 0usize);
     while pos + 8 <= bytes.len() {
         let id = &bytes[pos..pos + 4];
-        let size =
-            u32::from_le_bytes([bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]])
-                as usize;
+        let size = u32::from_le_bytes([
+            bytes[pos + 4],
+            bytes[pos + 5],
+            bytes[pos + 6],
+            bytes[pos + 7],
+        ]) as usize;
         if id == b"data" {
             start = pos + 8;
             end = (start + size).min(bytes.len());

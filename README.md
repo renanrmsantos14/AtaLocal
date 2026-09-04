@@ -1,15 +1,16 @@
 # AtaLocal
 
-Aplicativo Windows para transcrição e ata de reuniões presenciais, **100% local**.
+Aplicativo Windows e Android para transcrição e ata de reuniões presenciais, **100% local**.
 Sem conta, sem assinatura, sem API paga, sem telemetria, sem envio de áudio.
 
 ## Fluxo principal
 
 `abrir → gravar → parar → aguardar → revisar`
 
-Grava a reunião por um único microfone, transcreve em português, separa as falas por
-voz, identifica pelos nomes das pessoas cadastradas e gera resumo com decisões,
-tarefas, responsáveis, prazos e pendências.
+Grava a reunião por um único microfone, transcreve em português e gera resumo com
+decisões, tarefas, responsáveis, prazos e pendências. A separação e identificação
+de vozes estão disponíveis no Windows; no Android ficam desativadas até o binding
+nativo do Sherpa ser empacotado.
 
 ## Stack
 
@@ -18,7 +19,7 @@ tarefas, responsáveis, prazos e pendências.
 | UI | Tauri 2 + React + TypeScript + Vite |
 | Backend local | Rust |
 | Banco | SQLite (`rusqlite`) |
-| Captura de áudio | `cpal` (WASAPI) |
+| Captura de áudio | `cpal` (WASAPI/Oboe) |
 | Transcrição | `whisper.cpp` (CPU) |
 | Diarização / voz | Sherpa-ONNX |
 | Resumo | `llama.cpp` + Qwen3 4B `Q4_K_M` |
@@ -33,6 +34,15 @@ SHA-256 e retomada de download.
 - Visual Studio Build Tools 2022 com workload "Desenvolvimento para desktop com C++"
 - CMake (para compilar whisper.cpp / llama.cpp / sherpa-onnx)
 - WebView2 Runtime (já vem no Windows 11)
+
+## APK Android
+
+O Poco X5 Pro 5G usa a arquitetura `arm64-v8a`, que é o alvo do APK publicado
+no GitHub Actions. O build local exige Android Studio/SDK, JDK 17, NDK e o alvo
+Rust `aarch64-linux-android`. O passo a passo está em [docs/android.md](docs/android.md).
+
+O APK gerado automaticamente é assinado para teste e instalação direta. Para
+Google Play, gere um AAB com uma chave Android de produção.
 
 ## Desenvolvimento
 
@@ -52,7 +62,7 @@ src-tauri/      Backend Rust + config Tauri
     diagnostics/    CPU, RAM, disco, microfones
     models/         Gerenciador de download de modelos
     audio/          Captura, gravação incremental, resample
-    pipeline/       Estados de processamento (Fase 2)
+    pipeline/       Estados de processamento e identificação de vozes
 docs/           Plano, decisões de arquitetura (ADR)
 scripts/        Utilitários de build e checksum
 ```

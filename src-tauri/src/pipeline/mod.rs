@@ -22,6 +22,13 @@ use crate::speaker;
 use crate::summarize::{LabeledLine, Summarizer};
 use crate::transcribe::{self, Transcriber};
 
+#[cfg(target_os = "windows")]
+const LLAMA_CLI_NAME: &str = "llama-cli.exe";
+#[cfg(target_os = "android")]
+const LLAMA_CLI_NAME: &str = "llama-cli";
+#[cfg(not(any(target_os = "windows", target_os = "android")))]
+const LLAMA_CLI_NAME: &str = "llama-cli";
+
 #[derive(Clone, serde::Serialize)]
 pub struct PipelineProgress {
     pub meeting_id: String,
@@ -38,12 +45,7 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn new(
-        db: Db,
-        paths: AppPaths,
-        models: Arc<ModelManager>,
-        app: AppHandle,
-    ) -> Self {
+    pub fn new(db: Db, paths: AppPaths, models: Arc<ModelManager>, app: AppHandle) -> Self {
         Self {
             db,
             paths,
@@ -86,7 +88,12 @@ impl Pipeline {
                     self.set_stage(&meeting_id, Stage::Diarizing, None)?;
                 }
                 Stage::Diarizing => {
-                    self.emit(&meeting_id, Stage::Diarizing, 0.0, "carregando modelos de voz");
+                    self.emit(
+                        &meeting_id,
+                        Stage::Diarizing,
+                        0.0,
+                        "carregando modelos de voz",
+                    );
                     if let Err(e) = self.diarize(&meeting) {
                         // Diarizacao falha nao invalida a transcricao: segue sem
                         // separacao de vozes e registra o motivo.
@@ -139,9 +146,7 @@ impl Pipeline {
                     return Ok(());
                 }
                 Stage::Recording => {
-                    return Err(AppError::Other(
-                        "a reuniao ainda esta gravando".into(),
-                    ));
+                    return Err(AppError::Other("a reuniao ainda esta gravando".into()));
                 }
             }
             meeting = meetings::get(&self.db, &meeting_id)?;
@@ -161,9 +166,10 @@ impl Pipeline {
                 v.push(chosen.as_str());
             }
             v.push(crate::models::recommended_whisper_id());
-            for m in catalog::CATALOG.iter().filter(|m| {
-                m.kind == catalog::ModelKind::Whisper && m.profile.is_some()
-            }) {
+            for m in catalog::CATALOG
+                .iter()
+                .filter(|m| m.kind == catalog::ModelKind::Whisper && m.profile.is_some())
+            {
                 v.push(m.id);
             }
             v
@@ -191,11 +197,23 @@ impl Pipeline {
 
         let model_path = self.whisper_model_path()?;
         let transcriber = Transcriber::load(&model_path)?;
+        self.emit(
+            &meeting.id,
+            Stage::Transcribing,
+            0.02,
+            "modelo carregado — lendo áudio",
+        );
 
         let samples = transcribe::load_mono_16k(&audio_path)?;
         if samples.is_empty() {
             return Err(AppError::Audio("audio vazio".into()));
         }
+        self.emit(
+            &meeting.id,
+            Stage::Transcribing,
+            0.05,
+            "áudio carregado — iniciando análise",
+        );
 
         let mid = meeting.id.clone();
         let app = self.app.clone();
@@ -205,7 +223,9 @@ impl Pipeline {
                 PipelineProgress {
                     meeting_id: mid.clone(),
                     stage: Stage::Transcribing,
-                    progress: p,
+                    // A preparação ocupa os primeiros 5%; a inferência fica
+                    // em 5..95%, deixando 100% para a gravação no banco.
+                    progress: 0.05 + p.clamp(0.0, 1.0) * 0.90,
                     message: "transcrevendo".to_string(),
                 },
             );
@@ -220,7 +240,19 @@ impl Pipeline {
             })
             .collect();
 
+        self.emit(
+            &meeting.id,
+            Stage::Transcribing,
+            0.95,
+            "salvando transcrição",
+        );
         segments::replace_all(&self.db, &meeting.id, &new_segments)?;
+        self.emit(
+            &meeting.id,
+            Stage::Transcribing,
+            1.0,
+            "transcrição concluída",
+        );
         tracing::info!(
             meeting = %meeting.id,
             segmentos = new_segments.len(),
@@ -266,8 +298,7 @@ impl Pipeline {
         let clusters = diarize::assign_clusters(&transcript, &voice, 0.2);
         segments::set_clusters(&self.db, &meeting.id, &clusters)?;
 
-        let distintos: std::collections::HashSet<_> =
-            clusters.iter().flatten().collect();
+        let distintos: std::collections::HashSet<_> = clusters.iter().flatten().collect();
         tracing::info!(
             meeting = %meeting.id,
             vozes = distintos.len(),
@@ -364,10 +395,9 @@ impl Pipeline {
             return Err(AppError::Other("sem transcricao para resumir".into()));
         }
 
-        let exe = self.models.resolve_file(
-            "llama-cpp-bin",
-            Some("llama-cli.exe"),
-        )?;
+        let exe = self
+            .models
+            .resolve_file("llama-cpp-bin", Some(LLAMA_CLI_NAME))?;
         let model = self
             .models
             .resolve_file("qwen3-4b-instruct-q4_k_m", None)

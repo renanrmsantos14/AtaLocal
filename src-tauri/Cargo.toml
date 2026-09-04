@@ -37,9 +37,10 @@ cpal = "0.15"
 flacenc = "0.5"
 # Decodificacao FLAC (leitura, para reprocessar o audio ja gravado)
 claxon = "0.4"
-# Extracao de pacotes: Sherpa em .tar.bz2, llama.cpp em .zip
+# Extracao de pacotes: Sherpa em .tar.bz2, llama.cpp em .zip/.tar.gz
 tar = "0.4"
 bzip2 = "0.4"
+flate2 = "1"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 # Transcricao: bindings do whisper.cpp (compila libwhisper via cmake, backend CPU)
@@ -48,9 +49,8 @@ whisper-rs = "0.16"
 # Suas libs C++ conflitam com o whisper.cpp quando linkadas no mesmo .exe
 # (crash 0x80000003 ao carregar o modelo). Ver docs/adr/0005-*.md.
 
-# Download de modelos. TLS via Schannel (native-tls) para nao arrastar o crate
-# `ring`, cujo build-script e bloqueado pela politica de seguranca desta maquina.
-reqwest = { version = "0.12", default-features = false, features = ["native-tls", "stream"] }
+# Download de modelos. Windows usa Schannel; Android usa Rustls porque nao
+# existe backend OpenSSL do sistema disponivel para o target Android.
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync"] }
 futures-util = "0.3"
 sha2 = "0.10"
@@ -66,6 +66,16 @@ parking_lot = "0.12"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
+
+[target.'cfg(not(target_os = "android"))'.dependencies.reqwest]
+version = "0.12"
+default-features = false
+features = ["native-tls", "stream"]
+
+[target.'cfg(target_os = "android")'.dependencies.reqwest]
+version = "0.12"
+default-features = false
+features = ["rustls-tls-native-roots", "stream"]
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

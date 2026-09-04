@@ -29,6 +29,14 @@ const STAGE_TEXT: Record<string, string> = {
 
 const PROCESSING = ["finalizing", "transcribing", "diarizing", "identifying", "summarizing"];
 
+const PROCESSING_MESSAGE: Record<string, string> = {
+  finalizing: "preparando áudio",
+  transcribing: "preparando transcrição",
+  diarizing: "preparando separação de vozes",
+  identifying: "preparando identificação",
+  summarizing: "preparando ata",
+};
+
 // Cores estáveis por cluster de voz, enquanto não há perfil identificado.
 const CLUSTER_COLORS = ["#4c8dff", "#3fb950", "#d29922", "#f85149", "#a371f7", "#79c0ff"];
 function clusterColor(c: number | null): string {
@@ -80,9 +88,16 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
   if (!meeting) return <p className="muted">Carregando…</p>;
 
   const processing = PROCESSING.includes(meeting.stage);
+  const liveProgress =
+    progress && progress.stage === meeting.stage ? progress : null;
+  const hasMeasuredProgress = liveProgress !== null && liveProgress.progress > 0;
+  const progressPercent = hasMeasuredProgress
+    ? Math.round(Math.min(1, liveProgress.progress) * 100)
+    : 0;
 
   async function retry() {
     await api.meetings.process(meetingId);
+    setProgress(null);
     if (!pollRef.current) pollRef.current = window.setInterval(refresh, 1500);
   }
 
@@ -124,16 +139,20 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
             <span>{STAGE_TEXT[meeting.stage] ?? meeting.stage}</span>
             <span className="badge warn">processando</span>
           </div>
-          {progress && progress.stage === meeting.stage && (
-            <>
-              <div className="progress">
-                <div style={{ width: `${Math.round(progress.progress * 100)}%` }} />
-              </div>
-              <div className="muted mono" style={{ marginTop: 4 }}>
-                {progress.message} · {Math.round(progress.progress * 100)}%
-              </div>
-            </>
-          )}
+          <div
+            className={hasMeasuredProgress ? "progress" : "progress indeterminate"}
+            role="progressbar"
+            aria-label={liveProgress?.message ?? PROCESSING_MESSAGE[meeting.stage]}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            {...(hasMeasuredProgress ? { "aria-valuenow": progressPercent } : {})}
+          >
+            <div style={{ width: hasMeasuredProgress ? `${progressPercent}%` : undefined }} />
+          </div>
+          <div className="muted mono" style={{ marginTop: 4 }} aria-live="polite">
+            {liveProgress?.message ?? PROCESSING_MESSAGE[meeting.stage]}
+            {hasMeasuredProgress ? ` · ${progressPercent}%` : " · trabalhando…"}
+          </div>
         </div>
       )}
 
@@ -254,6 +273,11 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
                   ? "A ata aparecerá aqui quando ficar pronta."
                   : "Sem ata gerada. Use 'Tentar novamente' para reprocessar."}
               </p>
+              {!processing && meeting.stage === "completed" && (
+                <button className="primary" onClick={retry}>
+                  Gerar ata agora
+                </button>
+              )}
             </div>
           )}
           {summary && (
