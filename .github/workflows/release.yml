@@ -59,17 +59,27 @@ jobs:
         shell: pwsh
         run: |
           $bundleRoot = Join-Path $env:GITHUB_WORKSPACE 'src-tauri/target/release/bundle'
-          $manifest = Get-ChildItem -LiteralPath $bundleRoot -Recurse -Filter 'latest.json' -File | Select-Object -First 1
-          if (-not $manifest) {
-            throw "latest.json nao foi gerado em $bundleRoot"
+          $installer = Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'nsis') -Filter '*.exe' -File | Select-Object -First 1
+          $signature = if ($installer) { Get-Item -LiteralPath "$($installer.FullName).sig" -ErrorAction SilentlyContinue }
+          if (-not $installer -or -not $signature) {
+            throw "instalador ou assinatura nao encontrado em $bundleRoot"
           }
 
-          $metadata = Get-Content -Raw -LiteralPath $manifest.FullName | ConvertFrom-Json
-          if ([string]::IsNullOrWhiteSpace($metadata.version) -or -not $metadata.platforms.'windows-x86_64'.url -or -not $metadata.platforms.'windows-x86_64'.signature) {
-            throw "latest.json invalido: $($manifest.FullName)"
+          $config = Get-Content -Raw -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'src-tauri/tauri.conf.json') | ConvertFrom-Json
+          $signatureText = (Get-Content -Raw -LiteralPath $signature.FullName).Trim()
+          $metadata = [ordered]@{
+            version = $config.version
+            notes = "AtaLocal $($config.version)"
+            pub_date = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = [ordered]@{
+              'windows-x86_64' = [ordered]@{
+                signature = $signatureText
+                url = "https://github.com/renanrmsantos14/AtaLocal/releases/download/$env:GITHUB_REF_NAME/$($installer.Name)"
+              }
+            }
           }
 
-          Copy-Item -LiteralPath $manifest.FullName -Destination (Join-Path $env:GITHUB_WORKSPACE 'latest.json') -Force
+          $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'latest.json') -Encoding utf8
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
