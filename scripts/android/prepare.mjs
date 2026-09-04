@@ -49,9 +49,8 @@ function ensureRuntimePermission() {
     return;
   }
 
-  const classWithBody = /(class\s+MainActivity\s*:\s*TauriActivity\(\))\s*\{/;
-  const classWithoutBody = /(class\s+MainActivity\s*:\s*TauriActivity\(\))/;
-  if ((!classWithBody.test(activity) && !classWithoutBody.test(activity)) || activity.includes("override fun onCreate")) {
+  const classLineMatch = activity.match(/^([ \t]*class\s+MainActivity\b[^\r\n]*)(?:\r?$)/m);
+  if (!classLineMatch || !classLineMatch[1].includes("TauriActivity") || activity.includes("override fun onCreate")) {
     throw new Error(
       `MainActivity.kt mudou de formato; adicione a permissao de microfone manualmente: ${activityPath}`,
     );
@@ -79,10 +78,11 @@ function ensureRuntimePermission() {
     }
   }
 `;
-  if (classWithBody.test(activity)) {
-    activity = activity.replace(classWithBody, `$1${onCreate}`);
+  const classLine = classLineMatch[1];
+  if (classLine.includes("{")) {
+    activity = activity.replace(classLine, `${classLine}${onCreate}`);
   } else {
-    activity = activity.replace(classWithoutBody, `$1{${onCreate}}`);
+    activity = activity.replace(classLine, `${classLine} {${onCreate}}`);
   }
   writeFileSync(activityPath, activity);
 }
