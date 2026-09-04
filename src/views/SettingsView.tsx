@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { platform } from "@tauri-apps/plugin-os";
 import { getVersion } from "@tauri-apps/api/app";
 import { api } from "../api";
 import type { AppSettings, WhisperOption, ModelInfo, SpeakerProfile } from "../types";
@@ -21,6 +22,7 @@ export function SettingsView() {
   const [whisper, setWhisper] = useState<WhisperOption[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [speakers, setSpeakers] = useState<SpeakerProfile[]>([]);
+  const isAndroid = platform() === "android";
 
   async function loadModels() {
     try {
@@ -66,6 +68,14 @@ export function SettingsView() {
   }
 
   async function checkUpdate() {
+    if (isAndroid) {
+      setUpd({
+        kind: "error",
+        message:
+          "No Android, atualizações são instaladas pelo APK da release. O updater automático é exclusivo do instalador Windows.",
+      });
+      return;
+    }
     setUpd({ kind: "checking" });
     try {
       const update = await check();
@@ -265,9 +275,14 @@ export function SettingsView() {
         </div>
 
         <div style={{ marginTop: 12 }}>
+          {isAndroid && (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Para atualizar no celular, baixe e instale o APK da nova release.
+            </p>
+          )}
           {(upd.kind === "idle" ||
             upd.kind === "current" ||
-            upd.kind === "error") && (
+            upd.kind === "error") && !isAndroid && (
             <button className="primary" onClick={checkUpdate}>
               Verificar atualização
             </button>

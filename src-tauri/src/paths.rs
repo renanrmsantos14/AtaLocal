@@ -31,4 +31,21 @@ impl AppPaths {
 
         Ok(paths)
     }
+
+    /// Escreve uma evidencia curta imediatamente, inclusive antes de uma API
+    /// nativa que possa encerrar o processo sem devolver um erro Rust.
+    pub fn append_runtime_log(&self, message: &str) {
+        use std::io::Write;
+
+        let path = self.logs_dir.join("atalocal.log");
+        let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        else {
+            return;
+        };
+        let _ = writeln!(file, "[runtime] {message}");
+        let _ = file.sync_data();
+    }
 }

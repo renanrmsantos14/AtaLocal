@@ -1,6 +1,6 @@
-//! Gravacao por WASAPI (cpal). Arquitetura de tres partes:
+//! Gravacao nativa. Usa CPAL no desktop e AudioRecord no Android.
 //!
-//! - **thread de captura**: cria o `cpal::Stream` (que NAO e `Send` no Windows),
+//! - **thread de captura**: cria o stream nativo e o mantem vivo,
 //!   mantem-no vivo e so acorda para checar o sinal de parada;
 //! - **callback de audio**: empurra blocos de f32 para um canal, nada mais;
 //! - **thread de escrita**: consome o canal, grava os dois WAV incrementais e
@@ -15,7 +15,9 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+#[cfg(not(target_os = "android"))]
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+#[cfg(not(target_os = "android"))]
 use cpal::{SampleFormat, StreamConfig};
 use parking_lot::Mutex;
 
@@ -26,15 +28,15 @@ use crate::error::{AppError, AppResult};
 
 #[derive(Clone)]
 pub struct RecorderHandle {
-    inner: Arc<RecorderState>,
+    pub(super) inner: Arc<RecorderState>,
 }
 
-struct RecorderState {
-    level_milli: AtomicU32,
-    peak_milli: AtomicU32,
-    duration_ms: AtomicU32,
-    stop: AtomicBool,
-    error: Mutex<Option<String>>,
+pub(super) struct RecorderState {
+    pub(super) level_milli: AtomicU32,
+    pub(super) peak_milli: AtomicU32,
+    pub(super) duration_ms: AtomicU32,
+    pub(super) stop: AtomicBool,
+    pub(super) error: Mutex<Option<String>>,
 }
 
 pub struct RecorderStatus {
@@ -70,15 +72,15 @@ pub struct RecordingPaths {
 }
 
 /// Configuracao de audio resolvida do dispositivo, para a thread de escrita.
-struct ResolvedConfig {
-    sample_rate: u32,
-    channels: u16,
+pub(super) struct ResolvedConfig {
+    pub(super) sample_rate: u32,
+    pub(super) channels: u16,
 }
 
 pub struct RecordingSession {
     handle: RecorderHandle,
-    capture: Option<std::thread::JoinHandle<()>>,
-    writer: Option<std::thread::JoinHandle<AppResult<()>>>,
+    pub(super) capture: Option<std::thread::JoinHandle<()>>,
+    pub(super) writer: Option<std::thread::JoinHandle<AppResult<()>>>,
 }
 
 impl RecordingSession {
@@ -101,6 +103,7 @@ impl RecordingSession {
     }
 }
 
+#[cfg(not(target_os = "android"))]
 pub fn start(device_name: Option<&str>, paths: RecordingPaths) -> AppResult<RecordingSession> {
     // Resolve o dispositivo e a config na thread atual so para validar cedo e
     // reportar erro claro; a thread de captura resolve de novo (Device nao e Send).
@@ -137,7 +140,9 @@ pub fn start(device_name: Option<&str>, paths: RecordingPaths) -> AppResult<Reco
         Err(_) => {
             state.stop.store(true, Ordering::Relaxed);
             let _ = capture.join();
-            return Err(AppError::Audio("tempo esgotado ao abrir o microfone".into()));
+            return Err(AppError::Audio(
+                "tempo esgotado ao abrir o microfone".into(),
+            ));
         }
     };
 
@@ -155,11 +160,8 @@ pub fn start(device_name: Option<&str>, paths: RecordingPaths) -> AppResult<Reco
 }
 
 #[cfg(target_os = "android")]
-fn resolve_device_name(_name: Option<&str>) -> AppResult<Option<String>> {
-    // No Android, o CPAL trabalha com a rota de entrada padrao. O nome
-    // exibido na UI e apenas um rotulo; nao deve ser reenviado para busca por
-    // nome, pois isso nao representa um dispositivo selecionavel no Android.
-    Ok(None)
+pub fn start(_device_name: Option<&str>, paths: RecordingPaths) -> AppResult<RecordingSession> {
+    android::start(paths)
 }
 
 #[cfg(not(target_os = "android"))]
@@ -185,6 +187,7 @@ fn resolve_device_name(name: Option<&str>) -> AppResult<Option<String>> {
     }
 }
 
+#[cfg(not(target_os = "android"))]
 fn capture_loop(
     device_name: Option<String>,
     tx: Sender<Vec<f32>>,
@@ -275,7 +278,7 @@ fn capture_loop(
     drop(stream);
 }
 
-fn writer_loop(
+pub(super) fn writer_loop(
     rx: Receiver<Vec<f32>>,
     paths: RecordingPaths,
     cfg: ResolvedConfig,

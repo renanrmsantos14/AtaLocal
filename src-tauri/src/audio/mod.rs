@@ -1,6 +1,8 @@
 //! Captura de audio. Fase 2: gravacao por WASAPI com salvamento incremental,
 //! copia mono 16 kHz PCM16 e medidor de volume.
 
+#[cfg(target_os = "android")]
+mod android;
 pub mod flac;
 pub mod recorder;
 pub mod resample;

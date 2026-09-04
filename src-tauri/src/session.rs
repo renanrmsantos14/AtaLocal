@@ -60,6 +60,9 @@ impl SessionManager {
             return Err(AppError::Other("ja existe uma gravacao em andamento".into()));
         }
 
+        self.paths
+            .append_runtime_log("inicio solicitado: preparando sessao de gravacao");
+
         let meeting = meetings::create(&self.db, title)?;
         let dir = &self.paths.recordings_dir;
         let original_wav = dir.join(format!("{}-original.wav", meeting.id));
@@ -73,6 +76,8 @@ impl SessionManager {
             },
         )
         .inspect_err(|e| {
+            self.paths
+                .append_runtime_log(&format!("falha ao abrir microfone: {e}"));
             let _ = meetings::set_stage(
                 &self.db,
                 &meeting.id,
@@ -80,6 +85,9 @@ impl SessionManager {
                 Some(&format!("falha ao abrir o microfone: {e}")),
             );
         })?;
+
+        self.paths
+            .append_runtime_log("microfone aberto e sessao de gravacao iniciada");
 
         let handle = session.handle();
         *guard = Some(Active {

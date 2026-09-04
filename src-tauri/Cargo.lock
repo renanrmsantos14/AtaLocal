@@ -92,7 +92,7 @@ dependencies = [
 
 [[package]]
 name = "atalocal"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "bzip2",
  "chrono",
@@ -102,7 +102,9 @@ dependencies = [
  "flate2",
  "futures-util",
  "hex",
+ "jni 0.21.1",
  "libloading 0.8.9",
+ "ndk-context",
  "parking_lot",
  "reqwest 0.12.28",
  "rusqlite",

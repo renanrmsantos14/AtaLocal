@@ -52,6 +52,7 @@ export function RecordView({ onFinished, variant = "foco" }: { onFinished: (meet
       try {
         const s = await api.recording.state();
         setRec(s);
+        if (s.error) setError(s.error);
         if (!s.recording && !s.meeting_id) stopPolling();
       } catch {
         /* ignore */

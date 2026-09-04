@@ -279,11 +279,15 @@ async fn download_model(
 ) -> AppResult<()> {
     let manager = state.models.clone();
     let app_handle = app.clone();
-    manager
+    let result = manager
         .download(&model_id, move |progress| {
             let _ = app_handle.emit("model://download-progress", &progress);
         })
-        .await
+        .await;
+    if let Err(error) = &result {
+        tracing::error!(model = %model_id, "download do modelo falhou: {error}");
+    }
+    result
 }
 
 #[tauri::command]

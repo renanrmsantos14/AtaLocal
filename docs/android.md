@@ -19,23 +19,28 @@ NDK 27.2.12479018, JDK 17 e Rust via rustup. Depois:
 npm install
 npm run tauri android init -- --ci --skip-targets-install
 npm run android:prepare
-npm run tauri android build -- --apk --debug --target aarch64 --split-per-abi
+npm run tauri android build -- --apk --target aarch64 --split-per-abi
 ```
 
 O APK fica em `src-tauri/gen/android/app/build/outputs/apk/`. Para instalar com
-ADB:
-
-```bash
-adb install -r caminho/para/app-arm64-v8a-debug.apk
-```
+o uso normal, transfira o arquivo para o celular e abra-o para instalar.
 
 Os dados e os modelos são gravados no armazenamento interno do app. Não é
 necessária permissão de armazenamento externo; o primeiro uso do microfone pede
 `RECORD_AUDIO`.
 
-No Android, a interface usa o microfone padrão do aparelho. O sistema pode não
-expor nomes de dispositivos selecionáveis, mas a gravação abre a rota nativa
-padrão depois que a permissão é concedida.
+No Android, a interface usa o microfone padrão do aparelho. A captura usa a API
+nativa `AudioRecord` do Android; o CPAL/Oboe fica restrito ao desktop. O sistema
+pode não expor nomes de dispositivos selecionáveis, mas a gravação abre a rota
+nativa padrão depois que a permissão é concedida.
+
+O pedido de `RECORD_AUDIO` é feito pelo sistema na primeira abertura. Se a
+permissão for negada, a reunião não é iniciada e o motivo aparece na tela e no
+log local. Um marcador síncrono também é gravado antes de abrir o microfone,
+para preservar o histórico mesmo se uma API nativa falhar.
+
+Atualizações dentro do app são exclusivas do instalador Windows. No Android,
+atualize baixando e instalando o novo APK da release.
 
 ## Release
 
