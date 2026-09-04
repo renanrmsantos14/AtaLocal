@@ -113,17 +113,18 @@ fn permission_granted(env: &mut JNIEnv) -> Result<bool, AndroidJniError> {
 }
 
 fn min_buffer_size(env: &mut JNIEnv, rate: i32) -> Result<i32, AndroidJniError> {
-    env.call_static_method(
-        "android/media/AudioRecord",
-        "getMinBufferSize",
-        "(III)I",
-        &[
-            JValue::Int(rate),
-            JValue::Int(CHANNEL_IN_MONO),
-            JValue::Int(ENCODING_PCM_16BIT),
-        ],
-    )?
-    .i()
+    Ok(env
+        .call_static_method(
+            "android/media/AudioRecord",
+            "getMinBufferSize",
+            "(III)I",
+            &[
+                JValue::Int(rate),
+                JValue::Int(CHANNEL_IN_MONO),
+                JValue::Int(ENCODING_PCM_16BIT),
+            ],
+        )?
+        .i()?)
 }
 
 fn capture_loop(
