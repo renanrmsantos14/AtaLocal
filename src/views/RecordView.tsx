@@ -42,7 +42,7 @@ export function RecordView({ onFinished, variant = "foco" }: { onFinished: (meet
       setDevices(d.input_devices);
       const def = d.input_devices.find((x) => x.is_default);
       setDevice(def?.name ?? d.input_devices[0]?.name ?? null);
-    });
+    }).catch(() => {});
     api.recording.state().then(setRec).catch(() => {});
   }, []);
 

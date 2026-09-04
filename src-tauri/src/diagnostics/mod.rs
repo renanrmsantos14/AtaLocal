@@ -1,3 +1,4 @@
+#[cfg(not(target_os = "android"))]
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde::Serialize;
 #[cfg(not(windows))]
@@ -91,6 +92,7 @@ fn free_space_bytes(path: &std::path::Path) -> u64 {
         .unwrap_or(0)
 }
 
+#[cfg(not(target_os = "android"))]
 fn enumerate_input_devices() -> Vec<AudioDevice> {
     let host = cpal::default_host();
     let default_name = host
@@ -114,6 +116,16 @@ fn enumerate_input_devices() -> Vec<AudioDevice> {
             })
         })
         .collect()
+}
+
+// A tela inicial consulta o diagnostico assim que monta. No Android, o CPAL
+// usa JNI/Oboe para consultar configuracoes de audio; essa consulta precoce
+// pode ocorrer antes de o contexto de audio estar pronto e derrubar o processo
+// nativo. A captura continua usando o dispositivo padrao quando o usuario
+// inicia a gravacao; apenas adiamos a enumeracao detalhada.
+#[cfg(target_os = "android")]
+fn enumerate_input_devices() -> Vec<AudioDevice> {
+    Vec::new()
 }
 
 pub fn run(paths: &AppPaths) -> AppResult<SystemDiagnostics> {
