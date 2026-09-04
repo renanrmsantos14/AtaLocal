@@ -513,6 +513,7 @@ fn resume_stale_pipelines(app: &AppHandle, state: &AppState) {
         .map_err(|e| tracing::error!("retomada dos pipelines falhou: {e}"));
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if std::env::args().nth(1).as_deref() == Some("--speaker-helper") {
         std::process::exit(speaker::run_helper(std::env::args()));
