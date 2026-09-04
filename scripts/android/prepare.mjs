@@ -26,18 +26,24 @@ function findFile(root, filename) {
 
 function ensureManifestPermission() {
   let manifest = readFileSync(manifestPath, "utf8");
-  const permission = "android.permission.RECORD_AUDIO";
-  if (!manifest.includes(permission)) {
-    const openTag = manifest.match(/<manifest\b[^>]*>/)?.[0];
-    if (!openTag) {
-      throw new Error(`manifesto Android invalido: ${manifestPath}`);
-    }
-    manifest = manifest.replace(
-      openTag,
-      `${openTag}\n    <uses-permission android:name="${permission}" />`,
-    );
-    writeFileSync(manifestPath, manifest);
+  const permissions = [
+    "android.permission.INTERNET",
+    "android.permission.RECORD_AUDIO",
+  ];
+  const missing = permissions.filter((permission) => !manifest.includes(permission));
+  if (missing.length === 0) {
+    return;
   }
+
+  const openTag = manifest.match(/<manifest\b[^>]*>/)?.[0];
+  if (!openTag) {
+    throw new Error(`manifesto Android invalido: ${manifestPath}`);
+  }
+  const declarations = missing
+    .map((permission) => `    <uses-permission android:name="${permission}" />`)
+    .join("\n");
+  manifest = manifest.replace(openTag, `${openTag}\n${declarations}`);
+  writeFileSync(manifestPath, manifest);
 }
 
 function ensureRuntimePermission() {

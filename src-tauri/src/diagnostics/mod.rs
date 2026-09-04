@@ -125,7 +125,15 @@ fn enumerate_input_devices() -> Vec<AudioDevice> {
 // inicia a gravacao; apenas adiamos a enumeracao detalhada.
 #[cfg(target_os = "android")]
 fn enumerate_input_devices() -> Vec<AudioDevice> {
-    Vec::new()
+    // O Android expoe uma rota de captura padrao, nao uma lista confiavel de
+    // nomes selecionaveis. A captura resolve essa rota novamente depois que a
+    // permissao de microfone ja foi concedida.
+    vec![AudioDevice {
+        name: "Microfone padrao do Android".into(),
+        is_default: true,
+        default_sample_rate: 0,
+        channels: 0,
+    }]
 }
 
 pub fn run(paths: &AppPaths) -> AppResult<SystemDiagnostics> {

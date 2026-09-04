@@ -140,12 +140,12 @@ export function RecordView({ onFinished, variant = "foco" }: { onFinished: (meet
           <input className="focus-title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Reunião de …" aria-label="Título da reunião" />
           <div className="focus-mic-row">
             <select value={device ?? ""} onChange={(e) => setDevice(e.target.value || null)} aria-label="Microfone">
-              {devices.length === 0 && <option value="">Nenhum microfone detectado</option>}
+              {devices.length === 0 && <option value="">Usar microfone padrão do aparelho</option>}
               {devices.map((d) => <option key={d.name} value={d.name}>{d.name}{d.is_default ? " — padrão" : ""}</option>)}
             </select>
             <span className={`badge ${signal.cls}`}>{signal.text}</span>
           </div>
-          <button className="record-button" onClick={start} disabled={busy || !device} aria-label="Iniciar gravação">GRAVAR</button>
+          <button className="record-button" onClick={start} disabled={busy} aria-label="Iniciar gravação">GRAVAR</button>
           <p className="privacy-note">O áudio, a transcrição e as vozes ficam apenas neste computador.</p>
         </div>
       ) : (
@@ -156,10 +156,10 @@ export function RecordView({ onFinished, variant = "foco" }: { onFinished: (meet
           <div className="record-grid">
             <div className="card setup-card">
               <label className="form-row"><span>Título</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Reunião de …" /></label>
-              <label className="form-row"><span>Microfone</span><select value={device ?? ""} onChange={(e) => setDevice(e.target.value || null)}>{devices.length === 0 && <option value="">Nenhum microfone detectado</option>}{devices.map((d) => <option key={d.name} value={d.name}>{d.name}{d.is_default ? " — padrão" : ""}</option>)}</select></label>
+              <label className="form-row"><span>Microfone</span><select value={device ?? ""} onChange={(e) => setDevice(e.target.value || null)}>{devices.length === 0 && <option value="">Usar microfone padrão do aparelho</option>}{devices.map((d) => <option key={d.name} value={d.name}>{d.name}{d.is_default ? " — padrão" : ""}</option>)}</select></label>
               <div className="form-row"><span>Privacidade</span><span className="muted">100% neste computador</span></div>
             </div>
-            <div className="card mic-test-card"><div className="eyebrow">teste de microfone</div><Waveform /><div className="signal-line"><span className="signal-dot ok" />{signal.text}</div><button className="primary" onClick={start} disabled={busy || !device}>Iniciar reunião</button></div>
+            <div className="card mic-test-card"><div className="eyebrow">teste de microfone</div><Waveform /><div className="signal-line"><span className="signal-dot ok" />{signal.text}</div><button className="primary" onClick={start} disabled={busy}>Iniciar reunião</button></div>
           </div>
         </>
       )}

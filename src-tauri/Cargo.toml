@@ -1,6 +1,6 @@
 [package]
 name = "atalocal"
-version = "0.4.4"
+version = "0.4.5"
 description = "Transcricao e ata de reunioes presenciais, 100% local"
 authors = ["AtaLocal"]
 edition = "2021"
@@ -74,7 +74,7 @@ features = ["native-tls", "stream"]
 [target.'cfg(target_os = "android")'.dependencies.reqwest]
 version = "0.12"
 default-features = false
-features = ["rustls-tls-native-roots", "stream"]
+features = ["rustls-tls-webpki-roots", "stream"]
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

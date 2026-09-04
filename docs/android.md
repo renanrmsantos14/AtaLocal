@@ -33,6 +33,10 @@ Os dados e os modelos são gravados no armazenamento interno do app. Não é
 necessária permissão de armazenamento externo; o primeiro uso do microfone pede
 `RECORD_AUDIO`.
 
+No Android, a interface usa o microfone padrão do aparelho. O sistema pode não
+expor nomes de dispositivos selecionáveis, mas a gravação abre a rota nativa
+padrão depois que a permissão é concedida.
+
 ## Release
 
 Ao criar uma tag `v*`, o workflow gera o instalador Windows e anexa o APK Android

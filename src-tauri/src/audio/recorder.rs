@@ -154,6 +154,15 @@ pub fn start(device_name: Option<&str>, paths: RecordingPaths) -> AppResult<Reco
     })
 }
 
+#[cfg(target_os = "android")]
+fn resolve_device_name(_name: Option<&str>) -> AppResult<Option<String>> {
+    // No Android, o CPAL trabalha com a rota de entrada padrao. O nome
+    // exibido na UI e apenas um rotulo; nao deve ser reenviado para busca por
+    // nome, pois isso nao representa um dispositivo selecionavel no Android.
+    Ok(None)
+}
+
+#[cfg(not(target_os = "android"))]
 fn resolve_device_name(name: Option<&str>) -> AppResult<Option<String>> {
     let host = cpal::default_host();
     match name {
