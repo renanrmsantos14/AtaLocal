@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter};
 use crate::audio::wav::WavWriter;
 use crate::audio::TARGET_SAMPLE_RATE;
 use crate::db::meetings::{self, Stage};
+use crate::db::settings;
 use crate::db::{segments, speakers, summary, Db};
 use crate::diarize;
 use crate::error::{AppError, AppResult};
