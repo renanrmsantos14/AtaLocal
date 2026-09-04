@@ -1,6 +1,6 @@
 [package]
 name = "atalocal"
-version = "0.4.2"
+version = "0.4.4"
 description = "Transcricao e ata de reunioes presenciais, 100% local"
 authors = ["AtaLocal"]
 edition = "2021"

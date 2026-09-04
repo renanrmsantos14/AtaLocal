@@ -41,8 +41,8 @@ O Poco X5 Pro 5G usa a arquitetura `arm64-v8a`, que é o alvo do APK publicado
 no GitHub Actions. O build local exige Android Studio/SDK, JDK 17, NDK e o alvo
 Rust `aarch64-linux-android`. O passo a passo está em [docs/android.md](docs/android.md).
 
-O APK gerado automaticamente é assinado para teste e instalação direta. Para
-Google Play, gere um AAB com uma chave Android de produção.
+O APK gerado automaticamente é um release assinado para instalação direta. Para
+Google Play, gere um AAB com a mesma chave Android de produção.
 
 ## Desenvolvimento
 

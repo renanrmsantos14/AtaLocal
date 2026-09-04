@@ -36,3 +36,7 @@ skill-observations/
 # Chave privada de assinatura do updater — NUNCA versionar
 src-tauri/*.key
 !src-tauri/*.key.pub
+
+# Chave privada de assinatura Android — NUNCA versionar
+.secrets/
+*.jks

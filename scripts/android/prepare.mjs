@@ -1,10 +1,12 @@
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const androidRoot = resolve(repoRoot, "src-tauri", "gen", "android");
 const manifestPath = resolve(androidRoot, "app", "src", "main", "AndroidManifest.xml");
+const gradlePath = resolve(androidRoot, "app", "build.gradle.kts");
+const keystorePropertiesPath = resolve(androidRoot, "keystore.properties");
 
 function findFile(root, filename) {
   const pending = [root];
@@ -106,6 +108,59 @@ ${permissionCheck("    ")}
   writeFileSync(activityPath, activity);
 }
 
+function ensureReleaseSigning() {
+  if (!existsSync(keystorePropertiesPath) || !existsSync(gradlePath)) {
+    return;
+  }
+
+  let gradle = readFileSync(gradlePath, "utf8");
+  let changed = false;
+  for (const line of ["import java.io.FileInputStream", "import java.util.Properties"]) {
+    if (!gradle.includes(line)) {
+      gradle = `${line}\n${gradle}`;
+      changed = true;
+    }
+  }
+
+  if (!gradle.includes('create("atalocalRelease")')) {
+    const buildTypesIndex = gradle.indexOf("buildTypes {");
+    if (buildTypesIndex < 0) {
+      throw new Error(`buildTypes nao encontrado no Gradle Android: ${gradlePath}`);
+    }
+    const signingConfig = `signingConfigs {
+    create("atalocalRelease") {
+        val keystorePropertiesFile = rootProject.file("keystore.properties")
+        val keystoreProperties = Properties()
+        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+        keyAlias = keystoreProperties["keyAlias"] as String
+        keyPassword = keystoreProperties["password"] as String
+        storeFile = file(keystoreProperties["storeFile"] as String)
+        storePassword = keystoreProperties["password"] as String
+    }
+}
+
+`;
+    gradle = `${gradle.slice(0, buildTypesIndex)}${signingConfig}${gradle.slice(buildTypesIndex)}`;
+    changed = true;
+  }
+
+  const signingAssignment = 'signingConfig = signingConfigs.getByName("atalocalRelease")';
+  if (!gradle.includes(signingAssignment)) {
+    const releaseBlock = gradle.match(/getByName\("release"\)\s*\{/);
+    if (!releaseBlock || releaseBlock.index === undefined) {
+      throw new Error(`buildType release nao encontrado no Gradle Android: ${gradlePath}`);
+    }
+    const insertionPoint = releaseBlock.index + releaseBlock[0].length;
+    gradle = `${gradle.slice(0, insertionPoint)}\n        ${signingAssignment}${gradle.slice(insertionPoint)}`;
+    changed = true;
+  }
+
+  if (changed) {
+    writeFileSync(gradlePath, gradle);
+  }
+}
+
 ensureManifestPermission();
 ensureRuntimePermission();
+ensureReleaseSigning();
 console.log(`Android preparado: ${manifestPath}`);

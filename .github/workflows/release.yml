@@ -90,7 +90,7 @@ jobs:
             latest.json
 
   android:
-    name: APK Android arm64 (teste)
+    name: APK Android arm64 (release)
     needs: release
     runs-on: ubuntu-latest
     steps:
@@ -150,11 +150,31 @@ jobs:
       - name: Initialize Tauri Android project
         run: npm run tauri android init -- --ci --skip-targets-install
 
+      - name: Configure Android release signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/atalocal-release.jks"
+          {
+            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'password=%s\n' "$ANDROID_KEY_PASSWORD"
+            printf 'storeFile=%s\n' "$RUNNER_TEMP/atalocal-release.jks"
+          } > src-tauri/gen/android/keystore.properties
+
       - name: Add microphone permission
         run: npm run android:prepare
 
-      - name: Build signed test APK
-        run: npm run tauri android build -- --apk --debug --target aarch64 --split-per-abi
+      - name: Build signed release APK
+        run: npm run tauri android build -- --apk --target aarch64 --split-per-abi
 
       - name: Collect APK
         shell: bash

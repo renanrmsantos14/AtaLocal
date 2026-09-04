@@ -7,8 +7,8 @@ a ata localmente com llama.cpp. A diarização e a identificação de vozes fica
 desativadas nesta etapa porque o backend atual do Sherpa é um executável Windows.
 
 O APK do workflow é `arm64-v8a`, adequado ao Poco X5 Pro 5G, e é assinado como
-build de teste para instalação direta. Ele não é uma assinatura de publicação na
-Google Play.
+build release para instalação direta. A chave privada fica somente nos secrets
+do GitHub; ela não é commitada no repositório.
 
 ## Build local
 
@@ -36,6 +36,6 @@ necessária permissão de armazenamento externo; o primeiro uso do microfone ped
 ## Release
 
 Ao criar uma tag `v*`, o workflow gera o instalador Windows e anexa o APK Android
-arm64 ao mesmo release. O job usa `--debug` de propósito para produzir um APK
-instalável sem guardar uma chave privada no repositório. Para publicar na Google
-Play, configure a assinatura de produção e troque o job para AAB/release.
+arm64 em modo release ao mesmo release. A chave privada fica fora do repositório,
+nos secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_PASSWORD` e `ANDROID_KEY_ALIAS` do GitHub.
