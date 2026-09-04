@@ -80,7 +80,7 @@ pub(super) struct ResolvedConfig {
 }
 
 pub struct RecordingSession {
-    handle: RecorderHandle,
+    pub(super) handle: RecorderHandle,
     pub(super) capture: Option<std::thread::JoinHandle<()>>,
     pub(super) writer: Option<std::thread::JoinHandle<AppResult<()>>>,
 }
