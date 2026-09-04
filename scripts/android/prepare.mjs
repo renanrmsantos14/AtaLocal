@@ -71,7 +71,15 @@ ${indent}}
   if (existingOnCreate) {
     const functionIndent = existingOnCreate[1].match(/^[ \t]*/)?.[0] ?? "";
     const bodyIndent = `${functionIndent}  `;
-    activity = activity.replace(existingOnCreate[1], `${existingOnCreate[1]}\n${permissionCheck(bodyIndent)}`);
+    const onCreateStart = existingOnCreate.index + existingOnCreate[1].length;
+    const superOnCreate = activity.slice(onCreateStart).match(/^[ \t]*super\.onCreate\([^\r\n]*\)(?:\r?$)/m);
+    if (!superOnCreate) {
+      throw new Error(
+        `onCreate Android sem super.onCreate; adicione a permissao de microfone manualmente: ${activityPath}`,
+      );
+    }
+    const insertionPoint = onCreateStart + superOnCreate.index + superOnCreate[0].length;
+    activity = `${activity.slice(0, insertionPoint)}\n${permissionCheck(bodyIndent)}${activity.slice(insertionPoint)}`;
     writeFileSync(activityPath, activity);
     return;
   }

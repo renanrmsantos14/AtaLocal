@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use directories::ProjectDirs;
-
 /// Diretorios locais do aplicativo. Tudo fica sob a pasta de dados do usuario.
 #[derive(Clone, Debug)]
 pub struct AppPaths {
@@ -13,15 +11,7 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
-    pub fn resolve() -> std::io::Result<Self> {
-        let base = ProjectDirs::from("br", "local", "AtaLocal")
-            .map(|d| d.data_dir().to_path_buf())
-            .unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap_or_else(|_| PathBuf::from("."))
-                    .join("data")
-            });
-
+    pub fn from_base(base: PathBuf) -> std::io::Result<Self> {
         let paths = Self {
             models_dir: base.join("models"),
             recordings_dir: base.join("recordings"),

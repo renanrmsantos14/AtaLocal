@@ -191,6 +191,8 @@ struct AppState {
     db: Db,
     models: Arc<ModelManager>,
     session: Arc<SessionManager>,
+    // Mantem o worker de escrita vivo durante toda a execucao do app.
+    _log_guard: tracing_appender::non_blocking::WorkerGuard,
 }
 
 const MAX_LOG_BYTES: u64 = 5 * 1024 * 1024;
@@ -519,39 +521,6 @@ pub fn run() {
         std::process::exit(speaker::run_helper(std::env::args()));
     }
 
-    let paths = AppPaths::resolve().expect("nao foi possivel preparar os diretorios locais");
-
-    let log_path = paths.logs_dir.join("atalocal.log");
-    let _ = cap_log_file(&log_path);
-    let file_appender = tracing_appender::rolling::never(&paths.logs_dir, "atalocal.log");
-    let (log_writer, _log_guard) = tracing_appender::non_blocking(file_appender);
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .with_writer(log_writer)
-        .try_init();
-
-    let db = Db::open(&paths).expect("nao foi possivel abrir o banco local");
-    let models = Arc::new(ModelManager::new(db.clone(), &paths));
-    let session = Arc::new(SessionManager::new(db.clone(), paths.clone()));
-
-    // Reuniao deixada em 'recording' por um fechamento abrupto nao tem como
-    // continuar gravando; marca como 'failed' recuperavel na proxima abertura.
-    if let Ok(list) = meetings::list(&db) {
-        for m in list
-            .into_iter()
-            .filter(|m| m.stage == meetings::Stage::Recording)
-        {
-            let _ = meetings::set_stage(
-                &db,
-                &m.id,
-                meetings::Stage::Failed,
-                Some("o aplicativo foi fechado durante a gravacao"),
-            );
-        }
-    }
-
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
@@ -559,11 +528,54 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(move |app| {
+            // No Android, ProjectDirs usa convencoes de Linux e pode resolver
+            // para um diretorio de trabalho sem permissao de escrita. O
+            // resolver do Tauri aponta para a pasta privada do aplicativo.
+            let base = app.path().app_data_dir().map_err(|error| {
+                std::io::Error::other(format!(
+                    "nao foi possivel localizar os dados do app: {error}"
+                ))
+            })?;
+            let paths = AppPaths::from_base(base)?;
+
+            let log_path = paths.logs_dir.join("atalocal.log");
+            let _ = cap_log_file(&log_path);
+            let file_appender = tracing_appender::rolling::never(&paths.logs_dir, "atalocal.log");
+            let (log_writer, log_guard) = tracing_appender::non_blocking(file_appender);
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(
+                    tracing_subscriber::EnvFilter::try_from_default_env()
+                        .unwrap_or_else(|_| "info".into()),
+                )
+                .with_writer(log_writer)
+                .try_init();
+
+            let db = Db::open(&paths)?;
+            let models = Arc::new(ModelManager::new(db.clone(), &paths));
+            let session = Arc::new(SessionManager::new(db.clone(), paths.clone()));
+
+            // Reuniao deixada em 'recording' por um fechamento abrupto nao tem como
+            // continuar gravando; marca como 'failed' recuperavel na proxima abertura.
+            if let Ok(list) = meetings::list(&db) {
+                for m in list
+                    .into_iter()
+                    .filter(|m| m.stage == meetings::Stage::Recording)
+                {
+                    let _ = meetings::set_stage(
+                        &db,
+                        &m.id,
+                        meetings::Stage::Failed,
+                        Some("o aplicativo foi fechado durante a gravacao"),
+                    );
+                }
+            }
+
             let state = AppState {
-                paths: paths.clone(),
-                db: db.clone(),
-                models: models.clone(),
-                session: session.clone(),
+                paths,
+                db,
+                models,
+                session,
+                _log_guard: log_guard,
             };
             resume_stale_pipelines(app.handle(), &state);
             app.manage(state);
