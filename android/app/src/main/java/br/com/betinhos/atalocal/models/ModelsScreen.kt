@@ -2,6 +2,8 @@ package br.com.betinhos.atalocal.models
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,6 +55,16 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
             item {
                 Text("Privacidade por padrão", style = MaterialTheme.typography.headlineMedium)
                 Text("Modelos ficam no armazenamento privado e são verificados por SHA-256.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.padding(2.dp))
+                val readyCount = AndroidModelCatalog.all.count { spec -> installed.find { it.id == spec.id }?.let(::isUsableModel) == true }
+                val activeCount = AndroidModelCatalog.all.count { spec -> installed.any { it.id == spec.id && it.status == "DOWNLOADING" } }
+                Card(colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        ModelSummary("PRONTOS", "$readyCount/${AndroidModelCatalog.all.size}")
+                        ModelSummary("ATIVOS", activeCount.toString())
+                        ModelSummary("PRIVACIDADE", "100% local")
+                    }
+                }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
             items(AndroidModelCatalog.all) { spec ->
@@ -86,8 +98,6 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
                         Button(enabled = !usable && activeWork == null, onClick = {
                             error = null
                             scope.launch {
-                                val modelDirectory = context.filesDir.resolve("models")
-                                val target = modelDirectory.resolve(spec.id)
                                 val current = installed.find { it.id == spec.id }
                                 if (current?.let(::isUsableModel) == true) return@launch
                                 val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>().setInputData(workDataOf(ModelDownloadWorker.KEY_ID to spec.id)).build()
@@ -114,6 +124,14 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
                 }
             }) { Text("Remover") } },
             dismissButton = { TextButton(onClick = { removeTarget = null }) { Text("Cancelar") } })
+    }
+}
+
+@Composable
+private fun ModelSummary(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleSmall)
     }
 }
 
