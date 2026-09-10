@@ -29,6 +29,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
     val scope = rememberCoroutineScope()
     val meeting by database.meetingDao().observe(meetingId).collectAsState(initial = null)
     val transcript by database.transcriptSegmentDao().observeAll(meetingId).collectAsState(initial = emptyList())
+    val audioSegments by database.audioSegmentDao().observeAll(meetingId).collectAsState(initial = emptyList())
     val artifacts by database.artifactDao().observe(meetingId).collectAsState(initial = emptyList())
     val artifact = artifacts.firstOrNull()
     val job by database.processingJobDao().observe(meetingId).collectAsState(initial = null)
@@ -44,6 +45,16 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
     }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
             item { Text(meeting?.status?.userLabel() ?: "", style = MaterialTheme.typography.labelLarge) }
+            item {
+                Text(
+                    "Áudio salvo: ${audioSegments.size} segmento${if (audioSegments.size == 1) "" else "s"} · Transcrição: ${transcript.size} trecho${if (transcript.size == 1) "" else "s"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (meeting?.status == MeetingStatus.RECORDED && audioSegments.isEmpty()) {
+                    Text("Nenhum arquivo de áudio foi finalizado. Grave novamente e mantenha o app aberto até aparecer a confirmação.", color = MaterialTheme.colorScheme.error)
+                }
+            }
             job?.let { current ->
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
