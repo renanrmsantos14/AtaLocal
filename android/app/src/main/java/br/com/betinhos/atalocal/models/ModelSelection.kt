@@ -8,3 +8,9 @@ fun selectWhisperModel(models: List<ModelInstallEntity>): String? = models.asSeq
     .map { File(it.filePath) }
     .firstOrNull(File::isFile)
     ?.absolutePath
+
+fun selectModel(models: List<ModelInstallEntity>, kind: String): String? = models.asSequence()
+    .filter { it.kind == kind }
+    .map { File(it.filePath) }
+    .firstOrNull(File::isFile)
+    ?.absolutePath

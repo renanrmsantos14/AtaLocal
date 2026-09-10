@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TranscriptSegmentDao {
     @Query("SELECT * FROM transcript_segments WHERE meetingId = :meetingId ORDER BY startMs")
+    suspend fun listAll(meetingId: String): List<TranscriptSegmentEntity>
+
+    @Query("SELECT * FROM transcript_segments WHERE meetingId = :meetingId ORDER BY startMs")
     fun observeAll(meetingId: String): Flow<List<TranscriptSegmentEntity>>
 
     @Upsert
