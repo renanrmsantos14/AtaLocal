@@ -47,6 +47,7 @@ import br.com.betinhos.atalocal.models.ModelsScreen
 import br.com.betinhos.atalocal.models.selectWhisperModel
 import br.com.betinhos.atalocal.diagnostics.DiagnosticsScreen
 import br.com.betinhos.atalocal.diagnostics.formatBytes
+import br.com.betinhos.atalocal.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 
@@ -76,9 +77,11 @@ class MainActivity : ComponentActivity() {
             AtaLocalTheme {
                 var selectedMeeting by rememberSaveable { mutableStateOf<String?>(null) }
                 var showDiagnostics by rememberSaveable { mutableStateOf(false) }
+                var showSettings by rememberSaveable { mutableStateOf(false) }
                 if (selectedMeeting != null) MeetingDetailScreen(database, selectedMeeting!!, onBack = { selectedMeeting = null })
                 else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), meetingDao, onBack = { showDiagnostics = false })
-                else HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onTogglePause = ::togglePause, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true })
+                else if (showSettings) SettingsScreen(onBack = { showSettings = false })
+                else HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onTogglePause = ::togglePause, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true }, onOpenSettings = { showSettings = true })
             }
         }
     }
@@ -110,9 +113,11 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             meetingDao.updateStatus(id, br.com.betinhos.atalocal.domain.MeetingStatus.RECORDED, duration)
         }
-        lifecycleScope.launch {
-            val modelPath = selectWhisperModel(modelInstallDao.observeAll().first())
-            PipelineScheduler.enqueue(this@MainActivity, id, modelPath)
+        if (getSharedPreferences("atalocal.settings", MODE_PRIVATE).getBoolean("auto_process", true)) {
+            lifecycleScope.launch {
+                val modelPath = selectWhisperModel(modelInstallDao.observeAll().first())
+                PipelineScheduler.enqueue(this@MainActivity, id, modelPath)
+            }
         }
         activeMeetingId = null
     }
@@ -131,7 +136,7 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onTogglePause: () -> Unit, onOpenMeeting: (String) -> Unit, onOpenDiagnostics: () -> Unit) {
+private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onTogglePause: () -> Unit, onOpenMeeting: (String) -> Unit, onOpenDiagnostics: () -> Unit, onOpenSettings: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val availableStorage = remember { StatFs(context.filesDir.path).availableBytes }
     val meetings by dao.observeAll().collectAsState(initial = emptyList())
@@ -165,6 +170,7 @@ private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecord
                 ) { Text("Nova reunião") }
                 TextButton(onClick = { showModels = true }) { Text("Gerenciar modelos") }
                 TextButton(onClick = onOpenDiagnostics) { Text("Diagnóstico") }
+                TextButton(onClick = onOpenSettings) { Text("Configurações") }
                 Text("Espaço livre: ${formatBytes(availableStorage)}", style = MaterialTheme.typography.bodySmall)
             }
             items(meetings, key = { it.id }) { meeting ->
