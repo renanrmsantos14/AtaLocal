@@ -41,8 +41,18 @@ class RecordingService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        startForeground(NOTIFICATION_ID, notification())
-        if (!running) startCapture(intent?.getStringExtra(EXTRA_DIRECTORY), intent?.getStringExtra(EXTRA_MEETING_ID))
+        try {
+            startForeground(NOTIFICATION_ID, notification())
+            if (!running) startCapture(intent?.getStringExtra(EXTRA_DIRECTORY), intent?.getStringExtra(EXTRA_MEETING_ID))
+        } catch (error: Throwable) {
+            sendBroadcast(
+                Intent(ACTION_ERROR)
+                    .setPackage(packageName)
+                    .putExtra(EXTRA_MEETING_ID, intent?.getStringExtra(EXTRA_MEETING_ID))
+                    .putExtra(EXTRA_ERROR, error.message ?: "Não foi possível iniciar a gravação")
+            )
+            stopSelf()
+        }
         return START_STICKY
     }
 
@@ -142,9 +152,11 @@ class RecordingService : Service() {
         const val ACTION_TOGGLE_PAUSE = "br.com.betinhos.atalocal.audio.TOGGLE_PAUSE"
         const val ACTION_LEVEL = "br.com.betinhos.atalocal.audio.LEVEL"
         const val ACTION_STOPPED = "br.com.betinhos.atalocal.audio.STOPPED"
+        const val ACTION_ERROR = "br.com.betinhos.atalocal.audio.ERROR"
         const val EXTRA_LEVEL = "microphone_level"
         const val EXTRA_DIRECTORY = "segment_directory"
         const val EXTRA_MEETING_ID = "meeting_id"
+        const val EXTRA_ERROR = "error"
         const val SAMPLE_RATE = 16_000
         const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
         const val ENCODING = AudioFormat.ENCODING_PCM_16BIT

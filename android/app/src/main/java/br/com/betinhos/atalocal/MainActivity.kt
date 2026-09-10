@@ -95,6 +95,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    private val recordingErrorReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val id = intent.getStringExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_MEETING_ID) ?: return
+            val message = intent.getStringExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_ERROR) ?: "Não foi possível iniciar a gravação"
+            lifecycleScope.launch { meetingDao.updateStatus(id, br.com.betinhos.atalocal.domain.MeetingStatus.FAILED, error = message) }
+            recordingUiMeetingId = null
+            openMeetingAfterStop = id
+        }
+    }
     private val microphonePermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -112,6 +121,7 @@ class MainActivity : ComponentActivity() {
         modelInstallDao = database.modelInstallDao()
         ContextCompat.registerReceiver(this, levelReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_LEVEL), ContextCompat.RECEIVER_NOT_EXPORTED)
         ContextCompat.registerReceiver(this, stoppedReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_STOPPED), ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, recordingErrorReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_ERROR), ContextCompat.RECEIVER_NOT_EXPORTED)
         lifecycleScope.launch(Dispatchers.IO) {
             val days = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getInt("retention_days", 30)
             cleanupExpiredAudio(filesDir.resolve("meetings"), meetingDao.listAll(), System.currentTimeMillis(), RetentionPolicy(days))
@@ -142,6 +152,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         unregisterReceiver(levelReceiver)
         unregisterReceiver(stoppedReceiver)
+        unregisterReceiver(recordingErrorReceiver)
         super.onDestroy()
     }
 
