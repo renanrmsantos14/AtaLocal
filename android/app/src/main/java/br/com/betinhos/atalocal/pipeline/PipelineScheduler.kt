@@ -10,11 +10,12 @@ import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
 
 object PipelineScheduler {
-    fun enqueue(context: Context, meetingId: String, modelPath: String? = null) {
+    fun enqueue(context: Context, meetingId: String, modelPath: String? = null, language: String = "pt") {
         val request = OneTimeWorkRequestBuilder<PipelineWorker>()
             .setInputData(workDataOf(
                 PipelineWorker.KEY_MEETING_ID to meetingId,
                 PipelineWorker.KEY_MODEL_PATH to modelPath,
+                PipelineWorker.KEY_LANGUAGE to language,
                 PipelineWorker.KEY_AUDIO_DIRECTORY to context.filesDir.resolve("meetings").resolve(meetingId).resolve("segments").path
             ))
             .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)

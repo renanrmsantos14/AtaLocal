@@ -21,6 +21,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         val database = DatabaseProvider.get(applicationContext)
         val meetingDao = database.meetingDao()
         val modelPath = inputData.getString(KEY_MODEL_PATH)
+        val language = inputData.getString(KEY_LANGUAGE) ?: "pt"
         if (modelPath.isNullOrBlank() || !File(modelPath).isFile) {
             return fail(database, meetingId, "Modelo Whisper não instalado")
         }
@@ -34,7 +35,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             val engine = JniWhisperEngine()
             dao.deleteForMeeting(meetingId)
             segments.forEachIndexed { index, audio ->
-                val transcript = engine.transcribe(File(modelPath), audio)
+                val transcript = engine.transcribe(File(modelPath), audio, language)
                 dao.upsertAll(transcript.mapIndexed { itemIndex, item ->
                     br.com.betinhos.atalocal.data.TranscriptSegmentEntity(
                         id = "$meetingId-$index-$itemIndex",
@@ -85,5 +86,6 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         const val KEY_MEETING_ID = "meeting_id"
         const val KEY_MODEL_PATH = "whisper_model_path"
         const val KEY_AUDIO_DIRECTORY = "audio_directory"
+        const val KEY_LANGUAGE = "language"
     }
 }

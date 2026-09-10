@@ -123,7 +123,8 @@ class MainActivity : ComponentActivity() {
         if (getSharedPreferences("atalocal.settings", MODE_PRIVATE).getBoolean("auto_process", true)) {
             lifecycleScope.launch {
                 val modelPath = selectWhisperModel(modelInstallDao.observeAll().first())
-                PipelineScheduler.enqueue(this@MainActivity, id, modelPath)
+                val language = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
+                PipelineScheduler.enqueue(this@MainActivity, id, modelPath, language)
             }
         }
         activeMeetingId = null

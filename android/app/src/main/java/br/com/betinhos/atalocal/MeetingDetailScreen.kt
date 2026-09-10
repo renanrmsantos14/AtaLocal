@@ -48,7 +48,10 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                         current.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (current.status == MeetingStatus.FAILED) Button(onClick = {
-                                scope.launch { PipelineScheduler.enqueue(context, meetingId, selectWhisperModel(database.modelInstallDao().observeAll().first())) }
+                                scope.launch {
+                                    val language = context.getSharedPreferences("atalocal.settings", android.content.Context.MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
+                                    PipelineScheduler.enqueue(context, meetingId, selectWhisperModel(database.modelInstallDao().observeAll().first()), language)
+                                }
                             }) { Text("Tentar novamente") }
                             if (current.status in setOf(MeetingStatus.QUEUED, MeetingStatus.TRANSCRIBING, MeetingStatus.GENERATING)) OutlinedButton(onClick = {
                                 WorkManager.getInstance(context).cancelUniqueWork("pipeline-$meetingId")
