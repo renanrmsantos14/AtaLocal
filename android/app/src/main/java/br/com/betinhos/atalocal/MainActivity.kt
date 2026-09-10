@@ -67,6 +67,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import br.com.betinhos.atalocal.settings.RetentionPolicy
 import br.com.betinhos.atalocal.settings.cleanupExpiredAudio
+import br.com.betinhos.atalocal.settings.cleanupExpiredDerivedData
 import br.com.betinhos.atalocal.data.DatabaseProvider
 import br.com.betinhos.atalocal.pipeline.PipelineRecovery
 
@@ -101,6 +102,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val days = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getInt("retention_days", 30)
             cleanupExpiredAudio(filesDir.resolve("meetings"), meetingDao.listAll(), System.currentTimeMillis(), RetentionPolicy(days))
+            val nowDays = System.currentTimeMillis() / 86_400_000L
+            val transcriptDays = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getInt("retention_transcripts_days", 180)
+            val artifactDays = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getInt("retention_minutes_days", 365)
+            cleanupExpiredDerivedData(database, meetingDao.listAll(), nowDays, RetentionPolicy(transcriptDays), RetentionPolicy(artifactDays))
             PipelineRecovery.recover(this@MainActivity, database)
         }
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
