@@ -8,7 +8,7 @@ import java.io.File
 
 class ModelSelectionTest {
     @Test fun `seleciona whisper instalado`() {
-        val file = File.createTempFile("whisper", ".bin")
+        val file = tempModel("whisper")
         try {
             assertEquals(file.absolutePath, selectWhisperModel(listOf(
                 ModelInstallEntity("w", "whisper", "1", file.path, 1, "hash")
@@ -21,8 +21,8 @@ class ModelSelectionTest {
     }
 
     @Test fun `prioriza modelo padrão instalado`() {
-        val first = File.createTempFile("whisper-first", ".bin")
-        val preferred = File.createTempFile("whisper-preferred", ".bin")
+        val first = tempModel("whisper-first")
+        val preferred = tempModel("whisper-preferred")
         try {
             val models = listOf(
                 ModelInstallEntity("first", "whisper", "1", first.path, 1, "hash"),
@@ -33,7 +33,7 @@ class ModelSelectionTest {
     }
 
     @Test fun `ignora modelo com download falho mesmo com arquivo no caminho`() {
-        val file = File.createTempFile("whisper-failed", ".bin")
+        val file = tempModel("whisper-failed")
         try {
             assertNull(selectWhisperModel(listOf(
                 ModelInstallEntity("failed", "whisper", "1", file.path, 1, "hash", status = "FAILED")
@@ -41,9 +41,18 @@ class ModelSelectionTest {
         } finally { file.delete() }
     }
 
+    @Test fun `ignora arquivo instalado truncado`() {
+        val file = File.createTempFile("whisper-truncated", ".bin")
+        try {
+            assertNull(selectWhisperModel(listOf(
+                ModelInstallEntity("tiny", "whisper", "1", file.path, file.length() + 1, "hash")
+            )))
+        } finally { file.delete() }
+    }
+
     @Test fun `prefere base como padrão e cai para tiny`() {
-        val tiny = File.createTempFile("whisper-tiny", ".bin")
-        val base = File.createTempFile("whisper-base", ".bin")
+        val tiny = tempModel("whisper-tiny")
+        val base = tempModel("whisper-base")
         try {
             val models = listOf(
                 ModelInstallEntity("whisper-tiny-q5_1.bin", "whisper", "1", tiny.path, 1, "hash"),
@@ -57,8 +66,8 @@ class ModelSelectionTest {
     }
 
     @Test fun `prefere LLM menor quando não há preferência configurada`() {
-        val small = File.createTempFile("qwen-small", ".gguf")
-        val large = File.createTempFile("qwen-large", ".gguf")
+        val small = tempModel("qwen-small", ".gguf")
+        val large = tempModel("qwen-large", ".gguf")
         try {
             assertEquals(small.absolutePath, selectModel(listOf(
                 ModelInstallEntity("Qwen3-4B-Instruct-Q4.gguf", "llm", "1", large.path, 1, "hash"),
@@ -66,4 +75,7 @@ class ModelSelectionTest {
             ), "llm"))
         } finally { small.delete(); large.delete() }
     }
+
+    private fun tempModel(prefix: String, suffix: String = ".bin"): File =
+        File.createTempFile(prefix, suffix).apply { writeBytes(byteArrayOf(0)) }
 }

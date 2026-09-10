@@ -7,8 +7,9 @@ fun selectWhisperModel(models: List<ModelInstallEntity>, preferredId: String? = 
     .filter { it.kind == "whisper" }
     .filter { it.status == "INSTALLED" }
     .sortedWith(compareBy<ModelInstallEntity>({ it.id != preferredId }, { whisperRank(it.id) }))
-    .map { File(it.filePath) }
-    .firstOrNull(File::isFile)
+    .map { it to File(it.filePath) }
+    .firstOrNull { (model, file) -> file.isFile && file.length() == model.sizeBytes }
+    ?.second
     ?.absolutePath
 
 private fun whisperRank(id: String): Int = when {
@@ -23,8 +24,9 @@ fun selectModel(models: List<ModelInstallEntity>, kind: String, preferredId: Str
     .filter { it.kind == kind }
     .filter { it.status == "INSTALLED" }
     .sortedWith(compareBy<ModelInstallEntity>({ it.id != preferredId }, { modelRank(it.id, kind) }))
-    .map { File(it.filePath) }
-    .firstOrNull(File::isFile)
+    .map { it to File(it.filePath) }
+    .firstOrNull { (model, file) -> file.isFile && file.length() == model.sizeBytes }
+    ?.second
     ?.absolutePath
 
 private fun modelRank(id: String, kind: String): Int = if (kind == "llm") {
