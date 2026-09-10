@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import br.com.betinhos.atalocal.data.ModelInstallDao
 import kotlinx.coroutines.launch
+import java.io.File
 
 @Composable
 fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
@@ -31,6 +34,7 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
     var downloading by remember { mutableStateOf<String?>(null) }
     var progress by remember { mutableStateOf(0L to 0L) }
     var error by remember { mutableStateOf<String?>(null) }
+    var removeTarget by remember { mutableStateOf<ModelSpec?>(null) }
 
     Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Button(onClick = onBack) { Text("Voltar") }
@@ -56,9 +60,22 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
                                 downloading = null
                             }
                         }) { Text(if (downloading == spec.id) "Baixando ${progress.first}/${progress.second}" else "Baixar / atualizar") }
+                        if (model != null) TextButton(enabled = downloading == null, onClick = { removeTarget = spec }) { Text("Remover modelo") }
                     }
                 }
             }
         }
+    }
+    removeTarget?.let { spec ->
+        AlertDialog(onDismissRequest = { removeTarget = null }, title = { Text("Remover modelo?") },
+            text = { Text("A reunião e a transcrição não serão apagadas. O modelo ${spec.id} será removido do aparelho.") },
+            confirmButton = { TextButton(onClick = {
+                scope.launch {
+                    installed.find { it.id == spec.id }?.let { File(it.filePath).delete() }
+                    dao.delete(spec.id)
+                    removeTarget = null
+                }
+            }) { Text("Remover") } },
+            dismissButton = { TextButton(onClick = { removeTarget = null }) { Text("Cancelar") } })
     }
 }

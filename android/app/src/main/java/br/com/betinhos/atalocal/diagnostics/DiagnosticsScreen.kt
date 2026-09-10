@@ -31,6 +31,7 @@ fun DiagnosticsScreen(modelDao: ModelInstallDao, onBack: () -> Unit) {
             Text("Android: ${snapshot.androidVersion}")
             Text("Armazenamento disponível: ${formatBytes(snapshot.availableStorageBytes)}")
             Text("Modelos instalados: ${models.size}")
+            snapshot.lastError?.let { Text("Último erro: $it", color = MaterialTheme.colorScheme.error) }
             models.forEach { Text("• ${it.id} (${formatBytes(it.sizeBytes)})") }
             Button(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
