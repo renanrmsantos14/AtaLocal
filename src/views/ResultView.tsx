@@ -54,6 +54,7 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
   const [speakerName, setSpeakerName] = useState("");
   const [speakerError, setSpeakerError] = useState<string | null>(null);
   const [enrolling, setEnrolling] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
   async function refresh() {
@@ -118,6 +119,41 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
     }
   }
 
+  function markdown(): string {
+    const lines = [`# ${meeting?.title ?? "Ata de reunião"}`, "", `**Data:** ${meeting ? new Date(meeting.started_at).toLocaleString("pt-BR") : ""}`, ""];
+    if (summary?.executive_summary) lines.push("## Resumo", "", summary.executive_summary, "");
+    const sections: Array<[string, string[]]> = [
+      ["Temas discutidos", summary?.topics ?? []],
+      ["Decisões", summary?.decisions.map((entry) => `${entry.text}${entry.timestamp ? ` (${entry.timestamp})` : ""}`) ?? []],
+      ["Pendências", summary?.pending.map((entry) => entry.text) ?? []],
+      ["Divergências", summary?.divergences.map((entry) => entry.text) ?? []],
+      ["Próximos passos", summary?.next_steps ?? []],
+      ["Tarefas", actions.map((entry) => `${entry.description} — ${entry.assignee ?? "Responsável não informado"}${entry.due ? ` · prazo ${entry.due}` : ""}`)],
+    ];
+    sections.forEach(([title, entries]) => { if (entries.length > 0) lines.push(`## ${title}`, "", ...entries.map((entry) => `- ${entry}`), ""); });
+    return lines.join("\n");
+  }
+
+  async function copyMinutes() {
+    try {
+      await navigator.clipboard.writeText(markdown());
+      setActionFeedback("Ata copiada para a área de transferência");
+    } catch {
+      setActionFeedback("Não foi possível copiar nesta sessão");
+    }
+  }
+
+  function exportMarkdown() {
+    const blob = new Blob([markdown()], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${(meeting?.title ?? "ata-local").replace(/[^a-z0-9áéíóúãõç -]/gi, "").trim() || "ata-local"}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setActionFeedback("Arquivo Markdown exportado");
+  }
+
   const transcriptClusters = Array.from(
     new Set(segments.flatMap((segment) => segment.cluster == null ? [] : [segment.cluster])),
   ).sort((a, b) => a - b);
@@ -130,8 +166,9 @@ export function ResultView({ meetingId, variant = "foco" }: { meetingId: string;
         {new Date(meeting.started_at).toLocaleString("pt-BR")} ·{" "}
         {Math.round(meeting.duration_secs / 60)} min
         </p></div>
-        <div className="result-actions"><button className="secondary-button">Exportar .md</button><button className="secondary-button">Copiar ata</button></div>
+        <div className="result-actions"><button className="secondary-button" onClick={exportMarkdown}>Exportar .md</button><button className="secondary-button" onClick={copyMinutes}>Copiar ata</button></div>
       </div>
+      {actionFeedback && <div className="action-feedback" role="status">{actionFeedback}<button className="icon-button" onClick={() => setActionFeedback(null)} aria-label="Fechar aviso"><span aria-hidden="true">×</span></button></div>}
 
       {processing && (
         <div className="card">

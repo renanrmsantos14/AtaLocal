@@ -288,6 +288,8 @@ button.primary:hover { filter: brightness(1.12); transform: translateY(-1px); }
 .result-tabs { gap: 8px; margin-top: 18px; }
 .result-tab { border-radius: 8px 8px 0 0; min-height: 44px; }
 .result-tab.active { color: var(--accent); }
+.action-feedback { align-items: center; background: var(--accent-soft); border: 1px solid rgba(45,212,191,.25); border-radius: 10px; color: var(--text); display: flex; font-size: 12px; gap: 10px; justify-content: space-between; margin: -10px 0 18px; padding: 10px 12px; }
+.action-feedback .icon-button { color: var(--accent); margin-left: 0; padding: 0 3px; }
 .search-overlay { padding-top: 76px; }
 .search-dialog { border-radius: 18px; }
 .search-dialog > input { min-height: 72px; }
