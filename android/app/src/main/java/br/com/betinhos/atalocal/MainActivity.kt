@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, br.com.betinhos.atalocal.audio.RecordingService::class.java)
             .putExtra(
                 br.com.betinhos.atalocal.audio.RecordingService.EXTRA_DIRECTORY,
-                filesDir.resolve("segments").path
+                filesDir.resolve("meetings").resolve(activeMeetingId ?: "unknown").resolve("segments").path
             )
         ContextCompat.startForegroundService(this, intent)
     }

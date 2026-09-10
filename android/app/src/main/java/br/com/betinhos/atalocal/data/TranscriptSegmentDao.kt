@@ -12,4 +12,7 @@ interface TranscriptSegmentDao {
 
     @Upsert
     suspend fun upsertAll(segments: List<TranscriptSegmentEntity>)
+
+    @Query("DELETE FROM transcript_segments WHERE meetingId = :meetingId")
+    suspend fun deleteForMeeting(meetingId: String)
 }
