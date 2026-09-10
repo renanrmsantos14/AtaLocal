@@ -228,6 +228,9 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var showModels by remember { mutableStateOf(false) }
+    val installedModels by modelDao.observeAll().collectAsState(initial = emptyList())
+    val hasWhisper = installedModels.any { it.kind == "whisper" && it.status == "INSTALLED" && java.io.File(it.filePath).isFile }
+    val hasLlm = installedModels.any { it.kind == "llm" && it.status == "INSTALLED" && java.io.File(it.filePath).isFile }
 
     if (showModels) {
         ModelsScreen(modelDao) { showModels = false }
@@ -263,6 +266,26 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
                     TextButton(onClick = onOpenSettings) { Text("Configurações") }
                 }
                 Text("${formatBytes(availableStorage)} disponíveis neste aparelho", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (!hasWhisper || !hasLlm) item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Prepare o processamento local", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            when {
+                                !hasWhisper && !hasLlm -> "Instale um modelo Whisper para transcrever e um modelo de ata para gerar o resumo."
+                                !hasWhisper -> "Instale um modelo Whisper para que as reuniões sejam transcritas."
+                                else -> "Instale um modelo de ata para transformar a transcrição em uma ata factual."
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(onClick = { showModels = true }) { Text("Abrir modelos") }
+                    }
+                }
             }
             items(meetings, key = { it.id }) { meeting ->
                 val job by database.processingJobDao().observe(meeting.id).collectAsState(initial = null)
