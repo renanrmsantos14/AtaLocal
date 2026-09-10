@@ -9,8 +9,7 @@ import br.com.betinhos.atalocal.domain.MeetingStatus
 import br.com.betinhos.atalocal.transcription.JniWhisperEngine
 import br.com.betinhos.atalocal.models.selectModel
 import br.com.betinhos.atalocal.summarization.JniLlamaEngine
-import br.com.betinhos.atalocal.summarization.buildFactualPrompt
-import br.com.betinhos.atalocal.summarization.parseMinutesOrFallback
+import br.com.betinhos.atalocal.summarization.generateMinutesInChunks
 import br.com.betinhos.atalocal.data.ArtifactEntity
 import kotlinx.coroutines.flow.first
 import java.io.File
@@ -81,7 +80,9 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             val transcript = dao.listAll(meetingId).joinToString("\n") { "[${it.startMs}ms] ${it.text}" }
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, 0f, "gerando-ata"))
             Log.i(TAG, "Gerando ata para $meetingId com ${transcript.length} caracteres de transcrição")
-            val minutes = parseMinutesOrFallback(JniLlamaEngine().generate(File(llamaPath), buildFactualPrompt(transcript)), transcript)
+            val minutes = generateMinutesInChunks(JniLlamaEngine(), File(llamaPath), transcript) { completed, total ->
+                database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, completed.toFloat() / total, "ata-bloco-$completed/$total"))
+            }
             database.artifactDao().upsert(ArtifactEntity(
                 id = "$meetingId-minutes", meetingId = meetingId, type = "minutes",
                 content = br.com.betinhos.atalocal.export.minutesToMarkdown(minutes), modelVersion = models.first { it.filePath == llamaPath }.version

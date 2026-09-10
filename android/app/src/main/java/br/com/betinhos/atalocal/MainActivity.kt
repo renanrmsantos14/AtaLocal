@@ -356,6 +356,7 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
 private fun homeCheckpointLabel(checkpoint: String): String = when {
     checkpoint == "queued" -> "Aguardando processamento local…"
     checkpoint == "gerando-ata" -> "Gerando ata…"
+    checkpoint.startsWith("ata-bloco-") -> "Gerando ata: bloco ${checkpoint.removePrefix("ata-bloco-")}"
     checkpoint.startsWith("processing-") -> "Transcrevendo segmento ${checkpoint.removePrefix("processing-")}…"
     checkpoint.startsWith("segment-") -> "Transcrição salva: segmento ${checkpoint.removePrefix("segment-")}"
     else -> checkpoint.replace('-', ' ')

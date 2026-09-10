@@ -157,6 +157,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
 private fun checkpointLabel(checkpoint: String): String = when {
     checkpoint == "queued" -> "Aguardando processamento local…"
     checkpoint == "gerando-ata" -> "Gerando a ata com base na transcrição…"
+    checkpoint.startsWith("ata-bloco-") -> "Gerando ata: bloco ${checkpoint.removePrefix("ata-bloco-")}"
     checkpoint.startsWith("processing-") -> "Transcrevendo segmento ${checkpoint.removePrefix("processing-")}…"
     checkpoint.startsWith("segment-") -> "Segmento ${checkpoint.removePrefix("segment-")} concluído"
     checkpoint == "complete" -> "Processamento concluído"

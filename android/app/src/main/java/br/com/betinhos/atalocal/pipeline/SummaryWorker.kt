@@ -9,8 +9,7 @@ import br.com.betinhos.atalocal.data.ProcessingJobEntity
 import br.com.betinhos.atalocal.domain.MeetingStatus
 import br.com.betinhos.atalocal.models.selectModel
 import br.com.betinhos.atalocal.summarization.JniLlamaEngine
-import br.com.betinhos.atalocal.summarization.buildFactualPrompt
-import br.com.betinhos.atalocal.summarization.parseMinutesOrFallback
+import br.com.betinhos.atalocal.summarization.generateMinutesInChunks
 import kotlinx.coroutines.flow.first
 import java.io.File
 
@@ -27,7 +26,9 @@ class SummaryWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
             database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.GENERATING)
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, 0f, "summary"))
             val transcript = segments.joinToString("\n") { "[${it.startMs}ms] ${it.text}" }
-            val minutes = parseMinutesOrFallback(JniLlamaEngine().generate(File(llamaPath), buildFactualPrompt(transcript)), transcript)
+            val minutes = generateMinutesInChunks(JniLlamaEngine(), File(llamaPath), transcript) { completed, total ->
+                database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, completed.toFloat() / total, "ata-bloco-$completed/$total"))
+            }
             database.artifactDao().upsert(ArtifactEntity("$meetingId-minutes", meetingId, "minutes", br.com.betinhos.atalocal.export.minutesToMarkdown(minutes), models.first { it.filePath == llamaPath }.version))
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.READY, 1f, "complete"))
             database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.READY)
