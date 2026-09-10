@@ -137,6 +137,7 @@ class RecordingService : Service() {
                 }
             }
         } catch (error: Throwable) {
+            running = false
             captureError = error.message ?: "A captura do microfone foi interrompida"
         } finally {
             writer.close()
@@ -158,6 +159,7 @@ class RecordingService : Service() {
                         .putExtra(EXTRA_MEETING_ID, currentMeetingId)
                         .putExtra(EXTRA_ERROR, captureError)
                 )
+                stopSelf()
             }
         }
     }
