@@ -365,7 +365,31 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
                     }
                 }
             }
-            if (meetings.isEmpty()) item { Text("Sua primeira gravação ficará armazenada somente neste aparelho.") }
+            if (meetings.isEmpty()) item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Seu espaço de reuniões", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "A primeira gravação fica somente neste aparelho, pronta para virar transcrição e ata local.",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Button(
+                            onClick = { dialogOpen = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp)
+                        ) { Text("Começar primeira gravação") }
+                    }
+                }
+            }
         }
     }
 
