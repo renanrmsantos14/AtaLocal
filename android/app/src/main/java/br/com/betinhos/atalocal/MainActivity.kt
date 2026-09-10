@@ -15,6 +15,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,8 +38,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
 import androidx.room.Room
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -160,7 +171,15 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AtaLocalTheme(content: @Composable () -> Unit) {
-    MaterialTheme(content = content)
+    val dark = darkColorScheme(
+        primary = Color(0xFF8AB4FF), onPrimary = Color(0xFF062E69),
+        secondary = Color(0xFF8DE1D4), onSecondary = Color(0xFF003731),
+        background = Color(0xFF0B1018), onBackground = Color(0xFFE6EAF2),
+        surface = Color(0xFF121A26), onSurface = Color(0xFFE6EAF2),
+        surfaceVariant = Color(0xFF202B3A), onSurfaceVariant = Color(0xFFBEC8D8),
+        error = Color(0xFFFFB4AB)
+    )
+    MaterialTheme(colorScheme = dark, typography = androidx.compose.material3.Typography(), content = content)
 }
 
 @Composable
@@ -180,30 +199,38 @@ private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecord
         return
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("AtaLocal") }) }) { insets ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = { TopAppBar(
+        colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+        title = { Column { Text("AtaLocal", style = MaterialTheme.typography.titleLarge); Text("Seu espaço de reuniões", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+    ) }) { insets ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(insets),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
+                AnimatedVisibility(visible = true, enter = fadeIn() + slideInVertically(initialOffsetY = { it / 5 })) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Reuniões locais", style = MaterialTheme.typography.headlineMedium)
-                    Text("Grave, transcreva e gere atas sem enviar seus dados para a nuvem.")
+                    Text("Tudo importante,\nsem sair do aparelho.", style = MaterialTheme.typography.headlineLarge)
+                    Text("Grave com privacidade. Transforme conversas em atas claras e acionáveis.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 }
             }
             item {
                 Button(
                     onClick = { dialogOpen = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Nova reunião") }
-                TextButton(onClick = { showModels = true }) { Text("Gerenciar modelos") }
-                TextButton(onClick = onOpenDiagnostics) { Text("Diagnóstico") }
-                TextButton(onClick = onOpenSettings) { Text("Configurações") }
-                Text("Espaço livre: ${formatBytes(availableStorage)}", style = MaterialTheme.typography.bodySmall)
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(18.dp)
+                ) { Text("＋  Nova reunião", style = MaterialTheme.typography.titleMedium) }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { showModels = true }) { Text("Modelos") }
+                    TextButton(onClick = onOpenDiagnostics) { Text("Diagnóstico") }
+                    TextButton(onClick = onOpenSettings) { Text("Configurações") }
+                }
+                Text("${formatBytes(availableStorage)} disponíveis neste aparelho", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             items(meetings, key = { it.id }) { meeting ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(modifier = Modifier.fillMaxWidth().animateContentSize(), shape = RoundedCornerShape(20.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { onOpenMeeting(meeting.id) }) { Text(meeting.title, style = MaterialTheme.typography.titleMedium) }
                         Text("${meeting.status.name.lowercase()} · ${meeting.durationSeconds}s")
