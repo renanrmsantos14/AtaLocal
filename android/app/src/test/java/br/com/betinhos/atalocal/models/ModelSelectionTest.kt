@@ -40,4 +40,19 @@ class ModelSelectionTest {
             )))
         } finally { file.delete() }
     }
+
+    @Test fun `prefere base como padrão e cai para tiny`() {
+        val tiny = File.createTempFile("whisper-tiny", ".bin")
+        val base = File.createTempFile("whisper-base", ".bin")
+        try {
+            val models = listOf(
+                ModelInstallEntity("whisper-tiny-q5_1.bin", "whisper", "1", tiny.path, 1, "hash"),
+                ModelInstallEntity("whisper-base-q5_1.bin", "whisper", "1", base.path, 1, "hash")
+            )
+            assertEquals(base.absolutePath, selectWhisperModel(models))
+            assertEquals(tiny.absolutePath, selectWhisperModel(listOf(
+                ModelInstallEntity("whisper-tiny-q5_1.bin", "whisper", "1", tiny.path, 1, "hash")
+            )))
+        } finally { tiny.delete(); base.delete() }
+    }
 }

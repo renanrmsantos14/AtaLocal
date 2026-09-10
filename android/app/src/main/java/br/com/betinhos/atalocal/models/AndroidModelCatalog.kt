@@ -1,6 +1,24 @@
 package br.com.betinhos.atalocal.models
 
 object AndroidModelCatalog {
+    val whisperTiny = ModelSpec(
+        id = "whisper-tiny-q5_1.bin",
+        kind = "whisper",
+        version = "1",
+        url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny-q5_1.bin",
+        sha256 = "818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7",
+        sizeBytes = 32_152_673
+    )
+
+    val whisperBase = ModelSpec(
+        id = "whisper-base-q5_1.bin",
+        kind = "whisper",
+        version = "1",
+        url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin",
+        sha256 = "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898",
+        sizeBytes = 59_707_625
+    )
+
     val whisperSmall = ModelSpec(
         id = "whisper-small-q5_1.bin",
         kind = "whisper",
@@ -28,5 +46,5 @@ object AndroidModelCatalog {
         sizeBytes = 2_497_281_120
     )
 
-    val all = listOf(whisperSmall, whisperLargeTurbo, qwen3)
+    val all = listOf(whisperTiny, whisperBase, whisperSmall, whisperLargeTurbo, qwen3)
 }
