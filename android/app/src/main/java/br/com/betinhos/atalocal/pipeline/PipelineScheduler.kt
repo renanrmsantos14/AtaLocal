@@ -41,7 +41,10 @@ object PipelineScheduler {
         )
     }
 
-    fun regenerateSummary(context: Context, meetingId: String) {
+    suspend fun regenerateSummary(context: Context, meetingId: String) {
+        val database = DatabaseProvider.get(context.applicationContext)
+        database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.GENERATING)
+        database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, checkpoint = "summary"))
         val request = OneTimeWorkRequestBuilder<SummaryWorker>().setInputData(workDataOf(SummaryWorker.KEY_MEETING_ID to meetingId)).build()
         WorkManager.getInstance(context).enqueueUniqueWork("summary-$meetingId", ExistingWorkPolicy.REPLACE, request)
     }

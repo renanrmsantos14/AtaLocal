@@ -74,12 +74,14 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (current.status in setOf(MeetingStatus.FAILED, MeetingStatus.CANCELLED)) Button(onClick = {
                                 scope.launch {
-                                    val language = context.getSharedPreferences("atalocal.settings", android.content.Context.MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
-                                    database.processingJobDao().upsert(br.com.betinhos.atalocal.data.ProcessingJobEntity(meetingId, MeetingStatus.QUEUED, checkpoint = "queued"))
-                                    database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.QUEUED)
-                                    PipelineScheduler.enqueue(context, meetingId, selectWhisperModel(database.modelInstallDao().observeAll().first()), language)
+                                    if (canRegenerateSummary(current.error, transcript.isNotEmpty())) {
+                                        PipelineScheduler.regenerateSummary(context, meetingId)
+                                    } else {
+                                        val language = context.getSharedPreferences("atalocal.settings", android.content.Context.MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
+                                        PipelineScheduler.enqueue(context, meetingId, selectWhisperModel(database.modelInstallDao().observeAll().first()), language)
+                                    }
                                 }
-                            }) { Text("Tentar novamente") }
+                            }) { Text(if (canRegenerateSummary(current.error, transcript.isNotEmpty())) "Gerar ata novamente" else "Tentar novamente") }
                             if (current.status in setOf(MeetingStatus.QUEUED, MeetingStatus.TRANSCRIBING, MeetingStatus.GENERATING)) OutlinedButton(onClick = {
                                 WorkManager.getInstance(context).cancelUniqueWork("pipeline-$meetingId")
                                 scope.launch { database.meetingDao().updateStatus(meetingId, MeetingStatus.CANCELLED) }
@@ -117,7 +119,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                 item { Text("Modelo usado: ${artifact.modelVersion ?: "não informado"}", style = MaterialTheme.typography.bodySmall) }
                 item { OutlinedTextField(edited, { edited = it }, Modifier.fillMaxWidth(), minLines = 12, label = { Text("Conteúdo editável") }) }
                 item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { PipelineScheduler.regenerateSummary(context, meetingId) }) { Text("Regenerar") }
+                    OutlinedButton(onClick = { scope.launch { PipelineScheduler.regenerateSummary(context, meetingId) } }) { Text("Regenerar") }
                     Button(onClick = { scope.launch { database.artifactDao().upsert(artifact.copy(content = edited, editedByUser = true)) } }) { Text("Salvar") }
                     OutlinedButton(onClick = {
                         val send = Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/markdown"; putExtra(Intent.EXTRA_TEXT, edited) }, "Compartilhar ata")
@@ -163,3 +165,7 @@ private fun checkpointLabel(checkpoint: String): String = when {
     checkpoint == "complete" -> "Processamento concluído"
     else -> checkpoint.replace('-', ' ')
 }
+
+private fun canRegenerateSummary(error: String?, hasTranscript: Boolean): Boolean = hasTranscript && error?.let {
+    it.contains("LLM", ignoreCase = true) || it.contains("Llama", ignoreCase = true) || it.contains("ata", ignoreCase = true)
+} == true
