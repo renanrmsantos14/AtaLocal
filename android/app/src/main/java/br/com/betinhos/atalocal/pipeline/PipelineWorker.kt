@@ -13,23 +13,17 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
     override suspend fun doWork(): Result {
         val meetingId = inputData.getString(KEY_MEETING_ID) ?: return Result.failure()
         val database = DatabaseProvider.get(applicationContext)
+        val meetingDao = database.meetingDao()
         val modelPath = inputData.getString(KEY_MODEL_PATH)
         if (modelPath.isNullOrBlank() || !File(modelPath).isFile) {
-            database.processingJobDao().upsert(
-                ProcessingJobEntity(
-                    meetingId = meetingId,
-                    status = MeetingStatus.FAILED,
-                    checkpoint = "whisper_model_missing",
-                    error = "Modelo Whisper não instalado"
-                )
-            )
-            return Result.failure()
+            return fail(database, meetingId, "Modelo Whisper não instalado")
         }
         val audioDirectory = File(inputData.getString(KEY_AUDIO_DIRECTORY) ?: "")
         val segments = audioDirectory.listFiles { file -> file.extension == "wav" }?.sortedBy { it.name }.orEmpty()
         if (segments.isEmpty()) return fail(database, meetingId, "Nenhum segmento de áudio finalizado")
 
         return try {
+            meetingDao.updateStatus(meetingId, MeetingStatus.TRANSCRIBING)
             val dao = database.transcriptSegmentDao()
             val engine = JniWhisperEngine()
             dao.deleteForMeeting(meetingId)
@@ -51,6 +45,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                 )
             }
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.TRANSCRIBED, 1f, "complete"))
+            meetingDao.updateStatus(meetingId, MeetingStatus.TRANSCRIBED)
             Result.success()
         } catch (error: Throwable) {
             fail(database, meetingId, error.message ?: "Falha nativa do Whisper")
@@ -59,6 +54,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
 
     private suspend fun fail(database: br.com.betinhos.atalocal.data.AtaLocalDatabase, id: String, message: String): Result {
         database.processingJobDao().upsert(ProcessingJobEntity(id, MeetingStatus.FAILED, error = message))
+        database.meetingDao().updateStatus(id, MeetingStatus.FAILED, error = message)
         return Result.failure()
     }
 
