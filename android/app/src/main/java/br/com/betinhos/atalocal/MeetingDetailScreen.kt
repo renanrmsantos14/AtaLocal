@@ -14,6 +14,11 @@ import br.com.betinhos.atalocal.data.ArtifactEntity
 import br.com.betinhos.atalocal.export.exportTextPdf
 import br.com.betinhos.atalocal.export.sharePdf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import androidx.work.WorkManager
+import br.com.betinhos.atalocal.models.selectWhisperModel
+import br.com.betinhos.atalocal.pipeline.PipelineScheduler
+import br.com.betinhos.atalocal.domain.MeetingStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,6 +29,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
     val transcript by database.transcriptSegmentDao().observeAll(meetingId).collectAsState(initial = emptyList())
     val artifacts by database.artifactDao().observe(meetingId).collectAsState(initial = emptyList())
     val artifact = artifacts.firstOrNull()
+    val job by database.processingJobDao().observe(meetingId).collectAsState(initial = null)
     var edited by remember(artifact?.id, artifact?.content) { mutableStateOf(artifact?.content.orEmpty()) }
 
     Scaffold(topBar = { TopAppBar(title = { Text(meeting?.title ?: "Reunião") }, navigationIcon = {
@@ -31,6 +37,24 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
     }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
             item { Text(meeting?.status?.name ?: "", style = MaterialTheme.typography.labelLarge) }
+            job?.let { current ->
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Processamento: ${current.status.name}")
+                        LinearProgressIndicator(progress = { current.progress }, Modifier.fillMaxWidth())
+                        current.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (current.status == MeetingStatus.FAILED) Button(onClick = {
+                                scope.launch { PipelineScheduler.enqueue(context, meetingId, selectWhisperModel(database.modelInstallDao().observeAll().first())) }
+                            }) { Text("Tentar novamente") }
+                            if (current.status in setOf(MeetingStatus.QUEUED, MeetingStatus.TRANSCRIBING, MeetingStatus.GENERATING)) OutlinedButton(onClick = {
+                                WorkManager.getInstance(context).cancelUniqueWork("pipeline-$meetingId")
+                                scope.launch { database.meetingDao().updateStatus(meetingId, MeetingStatus.CANCELLED) }
+                            }) { Text("Cancelar") }
+                        }
+                    }
+                }
+            }
             item { Text("Transcrição", style = MaterialTheme.typography.titleLarge) }
             if (transcript.isEmpty()) item { Text("A transcrição aparecerá aqui após o processamento.") }
             items(transcript) { Text("${it.startMs / 1000}s  ${it.text}") }
