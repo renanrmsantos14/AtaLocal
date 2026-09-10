@@ -12,10 +12,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -34,6 +41,11 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 
 @Composable
 private fun HomeScreen() {
+    var dialogOpen by remember { mutableStateOf(false) }
+    var title by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    var createdTitle by remember { mutableStateOf<String?>(null) }
+
     Scaffold(topBar = { TopAppBar(title = { Text("AtaLocal") }) }) { insets ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(insets),
@@ -48,18 +60,41 @@ private fun HomeScreen() {
             }
             item {
                 Button(
-                    onClick = { /* Fase 2: solicitar microfone e criar reunião */ },
+                    onClick = { dialogOpen = true },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Nova reunião") }
             }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Nenhuma reunião ainda", style = MaterialTheme.typography.titleMedium)
-                        Text("Sua primeira gravação ficará armazenada somente neste aparelho.")
+                        Text(createdTitle ?: "Nenhuma reunião ainda", style = MaterialTheme.typography.titleMedium)
+                        Text(if (createdTitle == null) "Sua primeira gravação ficará armazenada somente neste aparelho."
+                        else "Reunião criada como rascunho. A gravação será adicionada na próxima etapa.")
                     }
                 }
             }
         }
+    }
+
+    if (dialogOpen) {
+        AlertDialog(
+            onDismissRequest = { dialogOpen = false },
+            title = { Text("Nova reunião") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = title, onValueChange = { title = it },
+                        label = { Text("Título") }, singleLine = true)
+                    OutlinedTextField(value = note, onValueChange = { note = it },
+                        label = { Text("Observação (opcional)") }, minLines = 2)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    runCatching { br.com.betinhos.atalocal.domain.createMeeting(title, note) }
+                        .onSuccess { createdTitle = it.title; dialogOpen = false; title = ""; note = "" }
+                }, enabled = title.isNotBlank()) { Text("Criar") }
+            },
+            dismissButton = { TextButton(onClick = { dialogOpen = false }) { Text("Cancelar") } }
+        )
     }
 }
