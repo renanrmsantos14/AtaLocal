@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <android/log.h>
 #include <llama.h>
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -9,6 +10,21 @@ constexpr const char *TAG = "AtaLocalLlama";
 
 void throw_illegal_state(JNIEnv *env, const char *message) {
     env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), message);
+}
+
+std::string format_chat_prompt(const llama_model *model, const char *prompt) {
+    const char *template_name = llama_model_chat_template(model, nullptr);
+    if (!template_name) return prompt;
+    const llama_chat_message messages[] = {
+        {"system", "Você é um assistente factual. Não invente informações."},
+        {"user", prompt}
+    };
+    const int32_t required = llama_chat_apply_template(template_name, messages, 2, true, nullptr, 0);
+    if (required <= 0) return prompt;
+    std::vector<char> buffer(static_cast<size_t>(required) + 1, '\0');
+    const int32_t written = llama_chat_apply_template(template_name, messages, 2, true, buffer.data(), static_cast<int32_t>(buffer.size()));
+    if (written <= 0) return prompt;
+    return std::string(buffer.data(), static_cast<size_t>(written));
 }
 }
 
@@ -38,8 +54,9 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
     }
     llama_sampler *sampler = llama_sampler_init_greedy();
     const llama_vocab *vocab = llama_model_get_vocab(loaded);
+    const std::string formatted_prompt = format_chat_prompt(loaded, prompt_utf);
     std::string output;
-    const int32_t required_tokens = llama_tokenize(vocab, prompt_utf, -1, nullptr, 0, true, true);
+    const int32_t required_tokens = llama_tokenize(vocab, formatted_prompt.c_str(), -1, nullptr, 0, true, true);
     if (required_tokens >= 0) {
         llama_sampler_free(sampler);
         llama_free(context);
@@ -50,7 +67,7 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
         return nullptr;
     }
     std::vector<llama_token> tokens(static_cast<size_t>(-required_tokens));
-    const int32_t tokenized = llama_tokenize(vocab, prompt_utf, -1, tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
+    const int32_t tokenized = llama_tokenize(vocab, formatted_prompt.c_str(), -1, tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
     if (tokenized < 0) {
         llama_sampler_free(sampler);
         llama_free(context);
