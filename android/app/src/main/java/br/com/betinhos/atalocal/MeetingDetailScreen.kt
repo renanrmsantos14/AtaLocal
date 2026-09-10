@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -31,6 +32,8 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
     val artifact = artifacts.firstOrNull()
     val job by database.processingJobDao().observe(meetingId).collectAsState(initial = null)
     var edited by remember(artifact?.id, artifact?.content) { mutableStateOf(artifact?.content.orEmpty()) }
+    var search by rememberSaveable { mutableStateOf("") }
+    val visibleTranscript = transcript.filter { search.isBlank() || it.text.contains(search, ignoreCase = true) }
 
     Scaffold(topBar = { TopAppBar(title = { Text(meeting?.title ?: "Reunião") }, navigationIcon = {
         TextButton(onClick = onBack) { Text("Voltar") }
@@ -56,8 +59,13 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                 }
             }
             item { Text("Transcrição", style = MaterialTheme.typography.titleLarge) }
+            item { OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), label = { Text("Buscar na transcrição") }, singleLine = true) }
             if (transcript.isEmpty()) item { Text("A transcrição aparecerá aqui após o processamento.") }
-            items(transcript) { Text("${it.startMs / 1000}s  ${it.text}") }
+            items(visibleTranscript, key = { it.id }) { segment ->
+                var text by remember(segment.id, segment.text) { mutableStateOf(segment.text) }
+                OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text("${segment.startMs / 1000}s") },
+                    trailingIcon = { TextButton(onClick = { scope.launch { database.transcriptSegmentDao().updateText(segment.id, text) } }) { Text("Salvar") } })
+            }
             item { Text("Ata", style = MaterialTheme.typography.titleLarge) }
             if (artifact == null) item { Text("A ata será gerada quando os modelos Whisper e Llama estiverem instalados.") }
             if (artifact != null) {
