@@ -12,7 +12,7 @@ class MeetingConverters {
 }
 
 @Database(
-    entities = [MeetingEntity::class, ProcessingJobEntity::class, TranscriptSegmentEntity::class, ModelInstallEntity::class],
+    entities = [MeetingEntity::class, ProcessingJobEntity::class, TranscriptSegmentEntity::class, ModelInstallEntity::class, ArtifactEntity::class],
     version = 1,
     exportSchema = true
 )
@@ -22,4 +22,5 @@ abstract class AtaLocalDatabase : RoomDatabase() {
     abstract fun processingJobDao(): ProcessingJobDao
     abstract fun transcriptSegmentDao(): TranscriptSegmentDao
     abstract fun modelInstallDao(): ModelInstallDao
+    abstract fun artifactDao(): ArtifactDao
 }
