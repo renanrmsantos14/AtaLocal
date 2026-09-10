@@ -20,7 +20,7 @@ class SummaryWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
         val database = DatabaseProvider.get(applicationContext)
         return try {
             val models = database.modelInstallDao().observeAll().first()
-            val llamaPath = selectModel(models, "llama") ?: return fail(database, meetingId, "Modelo LLM não instalado")
+            val llamaPath = selectModel(models, "llm") ?: return fail(database, meetingId, "Modelo LLM não instalado")
             val segments = database.transcriptSegmentDao().listAll(meetingId)
             if (segments.isEmpty()) return fail(database, meetingId, "Transcrição vazia")
             database.meetingDao().updateStatus(meetingId, MeetingStatus.GENERATING)

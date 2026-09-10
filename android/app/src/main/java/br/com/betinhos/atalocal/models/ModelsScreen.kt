@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -12,6 +15,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +33,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
     val context = LocalContext.current
     val installed by dao.observeAll().collectAsState(initial = emptyList())
@@ -36,15 +43,16 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var removeTarget by remember { mutableStateOf<ModelSpec?>(null) }
 
-    Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = onBack) { Text("Voltar") }
-        Text("Modelos locais", style = MaterialTheme.typography.headlineMedium)
-        Text("Baixados no armazenamento privado e verificados por SHA-256.")
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Scaffold(topBar = { TopAppBar(title = { Text("Modelos locais") }, navigationIcon = { TextButton(onClick = onBack) { Text("Voltar") } }) }) { padding ->
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                Text("Privacidade por padrão", style = MaterialTheme.typography.headlineMedium)
+                Text("Modelos ficam no armazenamento privado e são verificados por SHA-256.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
             items(AndroidModelCatalog.all) { spec ->
                 val model = installed.find { it.id == spec.id }
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(modifier = Modifier.fillMaxWidth().animateContentSize(), shape = RoundedCornerShape(20.dp)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(spec.id, style = MaterialTheme.typography.titleMedium)
                         Text("${spec.kind} · ${spec.sizeBytes / 1_000_000} MB")

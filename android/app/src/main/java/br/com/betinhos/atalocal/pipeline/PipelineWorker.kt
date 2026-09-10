@@ -53,7 +53,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             }
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.TRANSCRIBED, 1f, "complete"))
             val models = database.modelInstallDao().observeAll().first()
-            val llamaPath = selectModel(models, "llama")
+            val llamaPath = selectModel(models, "llm")
                 ?: return fail(database, meetingId, "Modelo LLM não instalado")
             meetingDao.updateStatus(meetingId, MeetingStatus.GENERATING)
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, 0f, "summary"))
