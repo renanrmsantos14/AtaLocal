@@ -6,6 +6,8 @@ import { MeetingsView } from "./views/MeetingsView";
 import { ResultView } from "./views/ResultView";
 import { SettingsView } from "./views/SettingsView";
 import { LogsView } from "./views/LogsView";
+import { api } from "./api";
+import type { Meeting } from "./types";
 
 type Tab = "record" | "meetings" | "models" | "diagnostics" | "logs" | "settings";
 type Variant = "foco" | "painel";
@@ -46,6 +48,14 @@ export function App() {
   const [variant, setVariant] = useState<Variant>("foco");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchMeetings, setSearchMeetings] = useState<Meeting[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  function closeSearch() {
+    setSearchOpen(false);
+    setSearchTerm("");
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -53,11 +63,22 @@ export function App() {
         event.preventDefault();
         setSearchOpen(true);
       }
-      if (event.key === "Escape") setSearchOpen(false);
+      if (event.key === "Escape") closeSearch();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    let active = true;
+    setSearchLoading(true);
+    api.meetings.list()
+      .then((items) => { if (active) setSearchMeetings(items); })
+      .catch(() => { if (active) setSearchMeetings([]); })
+      .finally(() => { if (active) setSearchLoading(false); });
+    return () => { active = false; };
+  }, [searchOpen, meetingsRefresh]);
 
   function goToMeeting(id: string) {
     setOpenMeeting(id);
@@ -103,7 +124,7 @@ export function App() {
             <button className={variant === "foco" ? "selected" : ""} onClick={() => setVariant("foco")} aria-pressed={variant === "foco"}>Foco</button>
             <button className={variant === "painel" ? "selected" : ""} onClick={() => setVariant("painel")} aria-pressed={variant === "painel"}>Painel</button>
           </div>
-          <button className="footer-link" onClick={() => setSearchOpen(true)}>Primeira execução</button>
+          <button className="footer-link" onClick={() => goTo("settings")}>Configurar app</button>
           <button className="theme-toggle" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-pressed={theme === "light"}>
             <span>{theme === "dark" ? "Tema escuro" : "Tema claro"}</span>
             <span className="toggle-track" aria-hidden="true"><span /></span>
@@ -133,19 +154,34 @@ export function App() {
       </main>
 
       {searchOpen && (
-        <div className="search-overlay" role="presentation" onMouseDown={() => setSearchOpen(false)}>
+        <div className="search-overlay" role="presentation" onMouseDown={closeSearch}>
           <section className="search-dialog" role="dialog" aria-modal="true" aria-labelledby="search-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="search-heading">
               <span className="live-dot" aria-hidden="true" />
               <label id="search-title" htmlFor="global-search">Buscar no AtaLocal</label>
-              <button className="icon-button" onClick={() => setSearchOpen(false)} aria-label="Fechar busca"><CloseIcon /></button>
+              <span className="search-shortcut">ESC</span>
+              <button className="icon-button" onClick={closeSearch} aria-label="Fechar busca"><CloseIcon /></button>
             </div>
-            <input id="global-search" autoFocus placeholder="decisão, tarefa, pessoa ou fala" />
-            <div className="search-empty">
-              <SearchIcon />
-              <p>Digite para buscar nas reuniões locais.</p>
-              <span>Esc para fechar</span>
-            </div>
+            <div className="search-input-wrap"><SearchIcon /><input id="global-search" autoFocus value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="buscar por título de reunião" /></div>
+            {searchTerm.trim() ? (
+              <div className="search-results" aria-live="polite">
+                {searchLoading && <p className="search-feedback">Procurando nas reuniões locais…</p>}
+                {!searchLoading && searchMeetings.filter((meeting) => meeting.title.toLocaleLowerCase().includes(searchTerm.trim().toLocaleLowerCase())).map((meeting) => (
+                  <button className="search-result" key={meeting.id} onClick={() => { closeSearch(); goToMeeting(meeting.id); }}>
+                    <span className="search-result-icon"><SearchIcon /></span>
+                    <span><b>{meeting.title}</b><small>{new Date(meeting.started_at).toLocaleDateString("pt-BR")} · {meeting.stage === "completed" ? "ata pronta" : meeting.stage}</small></span>
+                    <span className="search-arrow">↵</span>
+                  </button>
+                ))}
+                {!searchLoading && searchMeetings.filter((meeting) => meeting.title.toLocaleLowerCase().includes(searchTerm.trim().toLocaleLowerCase())).length === 0 && <p className="search-feedback">Nenhuma reunião encontrada para “{searchTerm}”.</p>}
+              </div>
+            ) : (
+              <div className="search-commands">
+                <span className="search-section-label">Ir para</span>
+                {NAV.slice(0, 4).map((item) => <button className="search-command" key={item.id} onClick={() => { closeSearch(); goTo(item.id); }}><NavIcon id={item.id} /><span>{item.label}</span><small>{item.detail}</small></button>)}
+                <p className="search-feedback">Digite o título para buscar nas reuniões locais.</p>
+              </div>
+            )}
           </section>
         </div>
       )}

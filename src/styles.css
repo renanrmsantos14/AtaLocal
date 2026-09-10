@@ -293,6 +293,24 @@ button.primary:hover { filter: brightness(1.12); transform: translateY(-1px); }
 .search-dialog > input { min-height: 72px; }
 button, select, input { min-height: 44px; }
 button { cursor: pointer; }
+.search-shortcut { border: 1px solid var(--line); border-radius: 5px; color: var(--faint); font: 9px ui-monospace, "Cascadia Code", monospace; padding: 3px 5px; }
+.search-input-wrap { align-items: center; border-bottom: 1px solid var(--line); display: flex; gap: 10px; padding: 0 20px; }
+.search-input-wrap svg { fill: none; flex: 0 0 auto; height: 19px; stroke: var(--accent); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; width: 19px; }
+.search-input-wrap input { background: transparent; border: 0; border-radius: 0; box-shadow: none; min-height: 66px; padding: 12px 0; width: 100%; }
+.search-input-wrap input:focus { box-shadow: none; }
+.search-commands, .search-results { padding: 12px; }
+.search-section-label { color: var(--faint); display: block; font-size: 10px; font-weight: 700; letter-spacing: .1em; padding: 7px 10px; text-transform: uppercase; }
+.search-command, .search-result { align-items: center; background: transparent; border: 0; border-radius: 9px; color: var(--muted); display: flex; gap: 11px; min-height: 44px; padding: 9px 10px; text-align: left; transition: background 150ms ease, color 150ms ease; width: 100%; }
+.search-command:hover, .search-result:hover { background: var(--raised); color: var(--text); }
+.search-command .nav-icon { color: var(--accent); }
+.search-command small, .search-result small { color: var(--faint); font-size: 10px; margin-left: auto; }
+.search-result-icon { align-items: center; color: var(--accent); display: inline-flex; }
+.search-result-icon svg { fill: none; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; width: 17px; }
+.search-result b, .search-result small { display: block; }
+.search-result b { color: var(--text); font-size: 12px; font-weight: 600; }
+.search-result small { margin: 3px 0 0; }
+.search-arrow { color: var(--accent); font-size: 16px; margin-left: auto; }
+.search-feedback { color: var(--faint); font-size: 12px; margin: 16px 10px 10px; text-align: center; }
 
 @media (max-width: 760px) {
   .sidebar { padding: 16px 14px 12px; }
@@ -308,4 +326,6 @@ button { cursor: pointer; }
   .result-actions { gap: 8px; }
   .result-heading { gap: 16px; }
   .card { padding: 18px; }
+  .search-shortcut { display: none; }
+  .search-input-wrap { padding: 0 16px; }
 }
