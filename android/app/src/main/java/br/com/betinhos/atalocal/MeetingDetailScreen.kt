@@ -10,6 +10,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import br.com.betinhos.atalocal.data.AtaLocalDatabase
 import br.com.betinhos.atalocal.data.ArtifactEntity
 import br.com.betinhos.atalocal.export.exportTextPdf
@@ -37,6 +38,9 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
     var search by rememberSaveable { mutableStateOf("") }
     var deleteOpen by rememberSaveable { mutableStateOf(false) }
     val visibleTranscript = transcript.filter { search.isBlank() || it.text.contains(search, ignoreCase = true) || it.editedText?.contains(search, ignoreCase = true) == true }
+    val currentStatus = meeting?.status ?: MeetingStatus.DRAFT
+    val progress = job?.progress?.coerceIn(0f, 1f) ?: 0f
+    val completedAudio = job?.checkpoint?.let(::completedSegmentCountForUi) ?: 0
 
     Scaffold(topBar = { TopAppBar(title = { Text(meeting?.title ?: "Reunião") }, navigationIcon = {
         TextButton(onClick = onBack) { Text("Voltar") }
@@ -44,13 +48,21 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
         TextButton(onClick = { deleteOpen = true }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
     }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
-            item { Text(meeting?.status?.userLabel() ?: "", style = MaterialTheme.typography.labelLarge) }
             item {
-                Text(
-                    "Áudio salvo: ${audioSegments.size} segmento${if (audioSegments.size == 1) "" else "s"} · Transcrição: ${transcript.size} trecho${if (transcript.size == 1) "" else "s"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("REUNIÃO", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.6.sp, color = MaterialTheme.colorScheme.primary)
+                    Text(meeting?.title ?: "Reunião", style = MaterialTheme.typography.headlineMedium)
+                    StatusBadge(currentStatus)
+                }
+            }
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), shape = MaterialTheme.shapes.large) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Metric("ÁUDIO", "${audioSegments.size}", "segmentos")
+                        Metric("TEXTO", "${transcript.size}", "trechos")
+                        Metric("DURAÇÃO", formatDuration(meeting?.durationSeconds ?: 0), "gravada")
+                    }
+                }
                 if (meeting?.status == MeetingStatus.RECORDED && audioSegments.isEmpty()) {
                     Text("Nenhum arquivo de áudio foi finalizado. Grave novamente e mantenha o app aberto até aparecer a confirmação.", color = MaterialTheme.colorScheme.error)
                 }
@@ -58,8 +70,13 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
             job?.let { current ->
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(current.status.userLabel(), style = MaterialTheme.typography.titleMedium)
-                        Text(processingHint(current.status, current.checkpoint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Andamento do processamento", style = MaterialTheme.typography.titleMedium)
+                        Text(processingHint(current.status, current.checkpoint), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ProcessingSteps(current.status)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(if (current.progress > 0f) "${(progress * 100).toInt()}% concluído" else "Preparando…", style = MaterialTheme.typography.labelLarge)
+                            Text("${completedAudio.coerceAtMost(audioSegments.size)}/${audioSegments.size} segmentos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         if (current.status == MeetingStatus.TRANSCRIBING && current.progress <= 0f) {
                             LinearProgressIndicator(Modifier.fillMaxWidth())
                         } else {
@@ -156,6 +173,56 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
         dismissButton = { TextButton(onClick = { deleteOpen = false }) { Text("Cancelar") } }
     )
 }
+
+@Composable
+private fun StatusBadge(status: MeetingStatus) {
+    Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
+        Text(status.userLabel(), Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+    }
+}
+
+@Composable
+private fun Metric(label: String, value: String, detail: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleMedium)
+        Text(detail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ProcessingSteps(status: MeetingStatus) {
+    val steps = listOf("Áudio", "Transcrição", "Ata")
+    val active = when (status) {
+        MeetingStatus.QUEUED -> 0
+        MeetingStatus.TRANSCRIBING -> 1
+        MeetingStatus.GENERATING, MeetingStatus.READY -> 2
+        else -> -1
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        steps.forEachIndexed { index, step ->
+            val done = active > index || status == MeetingStatus.READY
+            Surface(color = if (done || active == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = Modifier.weight(1f)) {
+                Text(if (done) "Concluído" else step, Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.labelSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = if (done || active == index) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+private fun completedSegmentCountForUi(checkpoint: String): Int = Regex("(?:segment|processing)-(\\d+)/(\\d+)").matchEntire(checkpoint)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+private fun formatDuration(seconds: Long): String = "%02d:%02d".format(seconds / 60, seconds % 60)
+
+private fun formatTimestamp(milliseconds: Long): String = "%02d:%02d".format(milliseconds / 60_000, (milliseconds / 1_000) % 60)
+
+private fun confidenceLabel(confidence: Float?): String = when {
+    confidence == null -> "CONFIRMADA"
+    confidence < 0.6f -> "REVISAR"
+    else -> "BOA LEITURA"
+}
+
+@Composable
+private fun confidenceColor(confidence: Float?): androidx.compose.ui.graphics.Color = if ((confidence ?: 1f) < 0.6f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
 
 private fun checkpointLabel(checkpoint: String): String = when {
     checkpoint == "queued" -> "Aguardando processamento local…"

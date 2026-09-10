@@ -18,13 +18,14 @@ ksp {
 android {
     namespace = "br.com.betinhos.atalocal"
     compileSdk = 35
+    buildFeatures { buildConfig = true }
 
     defaultConfig {
         applicationId = "br.com.betinhos.atalocal"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.4.10"
+        versionCode = 11
+        versionName = "0.4.11"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
     }

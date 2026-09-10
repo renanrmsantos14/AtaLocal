@@ -17,12 +17,11 @@ NDK 27.2.12479018, JDK 17 e Rust via rustup. Depois:
 
 ```bash
 npm install
-npm run tauri android init -- --ci --skip-targets-install
-npm run android:prepare
-npm run tauri android build -- --apk --target aarch64 --split-per-abi
+cd android
+gradlew.bat :app:testDebugUnitTest :app:assembleRelease
 ```
 
-O APK fica em `src-tauri/gen/android/app/build/outputs/apk/`. Para instalar com
+O APK fica em `android/app/build/outputs/apk/release/app-release.apk`. Para instalar com
 o uso normal, transfira o arquivo para o celular e abra-o para instalar.
 
 Os dados e os modelos são gravados no armazenamento interno do app. Não é
@@ -44,7 +43,7 @@ atualize baixando e instalando o novo APK da release.
 
 ## Release
 
-Ao criar uma tag `v*`, o workflow gera o instalador Windows e anexa o APK Android
-arm64 em modo release ao mesmo release. A chave privada fica fora do repositório,
+Ao criar uma tag `v*`, o workflow gera o instalador Windows e anexa somente o APK
+Android Kotlin arm64 em modo release ao mesmo release. A chave privada fica fora do repositório,
 nos secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
 `ANDROID_KEY_PASSWORD` e `ANDROID_KEY_ALIAS` do GitHub.

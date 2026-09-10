@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import br.com.betinhos.atalocal.data.ModelInstallDao
+import kotlinx.coroutines.launch
 
 private const val PREFS = "atalocal.settings"
 private const val KEY_LANGUAGE = "transcription_language"
@@ -30,6 +31,9 @@ fun SettingsScreen(modelDao: ModelInstallDao, onBack: () -> Unit) {
     var minutesRetentionDays by remember { mutableIntStateOf(prefs.getInt(KEY_MINUTES_RETENTION_DAYS, 365)) }
     var defaultWhisper by remember { mutableStateOf(prefs.getString(KEY_DEFAULT_WHISPER, null)) }
     var defaultLlm by remember { mutableStateOf(prefs.getString(KEY_DEFAULT_LLM, null)) }
+    var updateState by remember { mutableStateOf<String?>(null) }
+    var checkingUpdate by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val installed by modelDao.observeAll().collectAsState(initial = emptyList())
     fun save(key: String, value: Any) = prefs.edit().apply {
         when (value) { is String -> putString(key, value); is Boolean -> putBoolean(key, value); is Int -> putInt(key, value) }
@@ -70,6 +74,31 @@ fun SettingsScreen(modelDao: ModelInstallDao, onBack: () -> Unit) {
             Slider(value = minutesRetentionDays.toFloat(), onValueChange = { minutesRetentionDays = it.toInt() }, valueRange = 30f..730f, steps = 699,
                 onValueChangeFinished = { save(KEY_MINUTES_RETENTION_DAYS, minutesRetentionDays) })
             Text("A limpeza de transcrições e atas mantém a reunião registrada, mas remove o conteúdo vencido.", style = MaterialTheme.typography.bodySmall)
+            HorizontalDivider()
+            Text("Aplicativo", style = MaterialTheme.typography.titleLarge)
+            Text("Versão ${br.com.betinhos.atalocal.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(
+                onClick = {
+                    checkingUpdate = true
+                    updateState = "Procurando uma versão mais recente…"
+                    scope.launch {
+                        runCatching { AppUpdater.check() }
+                            .onSuccess { update ->
+                                if (update == null) updateState = "Você já está usando a versão mais recente."
+                                else {
+                                    updateState = "Baixando a versão ${update.tag}…"
+                                    runCatching { AppUpdater.downloadAndInstall(context, update) }
+                                        .onFailure { updateState = "Não foi possível instalar: ${it.message ?: "erro desconhecido"}" }
+                                }
+                            }
+                            .onFailure { updateState = "Não foi possível consultar o GitHub: ${it.message ?: "erro de conexão"}" }
+                        checkingUpdate = false
+                    }
+                },
+                enabled = !checkingUpdate,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (checkingUpdate) "Verificando…" else "Verificar atualizações") }
+            updateState?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }

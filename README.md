@@ -37,11 +37,11 @@ SHA-256 e retomada de download.
 
 ## APK Android
 
-O Poco X5 Pro 5G usa a arquitetura `arm64-v8a`, que é o alvo do APK publicado
-no GitHub Actions. O build local exige Android Studio/SDK, JDK 17, NDK e o alvo
-Rust `aarch64-linux-android`. O passo a passo está em [docs/android.md](docs/android.md).
+O Poco X5 Pro 5G usa a arquitetura `arm64-v8a`, que é o alvo do APK Kotlin publicado
+no GitHub Actions. O build local exige Android Studio/SDK, JDK 17, NDK e Gradle.
+O passo a passo está em [docs/android.md](docs/android.md).
 
-O APK gerado automaticamente é um release assinado para instalação direta. Para
+O APK Kotlin gerado automaticamente é um release assinado para instalação direta. Para
 Google Play, gere um AAB com a mesma chave Android de produção.
 
 ## Desenvolvimento
