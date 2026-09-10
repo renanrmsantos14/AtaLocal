@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -144,7 +145,7 @@ class MainActivity : ComponentActivity() {
                 else if (detailMeetingId != null) MeetingDetailScreen(database, detailMeetingId, onBack = { selectedMeeting = null; openMeetingAfterStop = null })
                 else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), meetingDao, onBack = { showDiagnostics = false })
                 else if (showSettings) SettingsScreen(onBack = { showSettings = false })
-                else HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onTogglePause = ::togglePause, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true }, onOpenSettings = { showSettings = true })
+                else HomeScreen(database, meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onTogglePause = ::togglePause, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true }, onOpenSettings = { showSettings = true })
             }
         }
     }
@@ -217,7 +218,7 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onTogglePause: () -> Unit, onOpenMeeting: (String) -> Unit, onOpenDiagnostics: () -> Unit, onOpenSettings: () -> Unit) {
+private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onTogglePause: () -> Unit, onOpenMeeting: (String) -> Unit, onOpenDiagnostics: () -> Unit, onOpenSettings: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val availableStorage = remember { StatFs(context.filesDir.path).availableBytes }
     val meetings by dao.observeAll().collectAsState(initial = emptyList())
@@ -263,10 +264,15 @@ private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecord
                 Text("${formatBytes(availableStorage)} disponíveis neste aparelho", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             items(meetings, key = { it.id }) { meeting ->
+                val job by database.processingJobDao().observe(meeting.id).collectAsState(initial = null)
                 Card(modifier = Modifier.fillMaxWidth().animateContentSize(), shape = RoundedCornerShape(20.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { onOpenMeeting(meeting.id) }) { Text(meeting.title, style = MaterialTheme.typography.titleMedium) }
                         Text("${meeting.status.userLabel()} · ${meeting.durationSeconds}s")
+                        if (job != null && meeting.status in setOf(br.com.betinhos.atalocal.domain.MeetingStatus.QUEUED, br.com.betinhos.atalocal.domain.MeetingStatus.TRANSCRIBING, br.com.betinhos.atalocal.domain.MeetingStatus.GENERATING)) {
+                            if (job!!.progress > 0f) LinearProgressIndicator(progress = { job!!.progress }, Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Text(job!!.checkpoint?.replace('-', ' ') ?: "Processando localmente…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         meeting.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         if (meeting.status == br.com.betinhos.atalocal.domain.MeetingStatus.RECORDING) {
                             TextButton(onClick = onTogglePause) { Text("Pausar / continuar") }
