@@ -17,6 +17,7 @@ class RecordingService : Service() {
     private var recorder: AudioRecord? = null
     private var captureThread: Thread? = null
     private var running = false
+    @Volatile private var paused = false
     private var segmentStore: SegmentFileStore? = null
 
     override fun onCreate() {
@@ -28,6 +29,10 @@ class RecordingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_TOGGLE_PAUSE) {
+            paused = !paused
+            return START_STICKY
+        }
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
@@ -67,6 +72,10 @@ class RecordingService : Service() {
         var writer = WavSegmentWriter(store.temporary(sequence)).also { it.open() }
         try {
             while (running) {
+                if (paused) {
+                    Thread.sleep(100)
+                    continue
+                }
                 val count = recorder?.read(buffer, 0, buffer.size) ?: 0
                 if (count <= 0) continue
                 var offset = 0
@@ -99,6 +108,7 @@ class RecordingService : Service() {
 
     companion object {
         const val ACTION_STOP = "br.com.betinhos.atalocal.audio.STOP"
+        const val ACTION_TOGGLE_PAUSE = "br.com.betinhos.atalocal.audio.TOGGLE_PAUSE"
         const val EXTRA_DIRECTORY = "segment_directory"
         const val SAMPLE_RATE = 16_000
         const val CHANNEL = AudioFormat.CHANNEL_IN_MONO

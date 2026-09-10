@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
                 var showDiagnostics by remember { mutableStateOf(false) }
                 if (selectedMeeting != null) MeetingDetailScreen(database, selectedMeeting!!, onBack = { selectedMeeting = null })
                 else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), onBack = { showDiagnostics = false })
-                else HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true })
+                else HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onTogglePause = ::togglePause, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true })
             }
         }
     }
@@ -113,6 +113,12 @@ class MainActivity : ComponentActivity() {
         }
         activeMeetingId = null
     }
+
+    private fun togglePause() {
+        startService(Intent(this, br.com.betinhos.atalocal.audio.RecordingService::class.java).apply {
+            action = br.com.betinhos.atalocal.audio.RecordingService.ACTION_TOGGLE_PAUSE
+        })
+    }
 }
 
 @Composable
@@ -122,7 +128,7 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onOpenMeeting: (String) -> Unit, onOpenDiagnostics: () -> Unit) {
+private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onTogglePause: () -> Unit, onOpenMeeting: (String) -> Unit, onOpenDiagnostics: () -> Unit) {
     val meetings by dao.observeAll().collectAsState(initial = emptyList())
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var dialogOpen by remember { mutableStateOf(false) }
@@ -162,6 +168,7 @@ private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecord
                         Text("${meeting.status.name.lowercase()} · ${meeting.durationSeconds}s")
                         meeting.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         if (meeting.status == br.com.betinhos.atalocal.domain.MeetingStatus.RECORDING) {
+                            TextButton(onClick = onTogglePause) { Text("Pausar / continuar") }
                             TextButton(onClick = onStopRecording) { Text("Parar gravação") }
                         }
                     }
