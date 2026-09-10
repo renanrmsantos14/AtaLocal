@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,6 +64,17 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
                             "INSTALLED" -> "Instalado"
                             else -> "Não instalado"
                         })
+                        if (model?.status == "DOWNLOADING" && downloading == spec.id) {
+                            val total = progress.second.takeIf { it > 0 } ?: spec.sizeBytes
+                            LinearProgressIndicator(
+                                progress = { (progress.first.toFloat() / total).coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("${formatModelBytes(progress.first)} de ${formatModelBytes(total)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (spec.id == AndroidModelCatalog.whisperTiny.id) {
+                            Text("Recomendado para começar: menor download e mais rápido no celular.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        }
                         Button(enabled = downloading == null, onClick = {
                             error = null
                             downloading = spec.id
@@ -103,4 +115,10 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
             }) { Text("Remover") } },
             dismissButton = { TextButton(onClick = { removeTarget = null }) { Text("Cancelar") } })
     }
+}
+
+private fun formatModelBytes(bytes: Long): String = when {
+    bytes >= 1_000_000_000L -> "%.1f GB".format(bytes / 1_000_000_000.0)
+    bytes >= 1_000_000L -> "%.0f MB".format(bytes / 1_000_000.0)
+    else -> "${bytes / 1_000} KB"
 }

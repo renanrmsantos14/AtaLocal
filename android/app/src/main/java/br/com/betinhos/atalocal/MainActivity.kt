@@ -109,6 +109,10 @@ class MainActivity : ComponentActivity() {
             val message = intent.getStringExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_ERROR) ?: "Não foi possível iniciar a gravação"
             lifecycleScope.launch { meetingDao.updateStatus(id, br.com.betinhos.atalocal.domain.MeetingStatus.FAILED, error = message) }
             recordingUiMeetingId = null
+            recordingPaused = false
+            pauseStartedAt = 0L
+            pausedDurationMs = 0L
+            microphoneLevel = 0f
             openMeetingAfterStop = id
         }
     }

@@ -59,6 +59,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(current.status.userLabel(), style = MaterialTheme.typography.titleMedium)
+                        Text(processingHint(current.status, current.checkpoint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (current.status == MeetingStatus.TRANSCRIBING && current.progress <= 0f) {
                             LinearProgressIndicator(Modifier.fillMaxWidth())
                         } else {
@@ -67,9 +68,9 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                         current.checkpoint?.let { checkpoint ->
                             Text(checkpointLabel(checkpoint), style = MaterialTheme.typography.bodySmall)
                         }
-                        current.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        current.error?.let { Text("Detalhe: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                         if (current.status == MeetingStatus.TRANSCRIBING && current.error == null) {
-                            Text("O áudio está sendo processado localmente. Isso pode levar alguns minutos em modelos maiores.", style = MaterialTheme.typography.bodySmall)
+                            Text("Tudo acontece neste aparelho. Não feche o app até aparecer a confirmação do segmento.", style = MaterialTheme.typography.bodySmall)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (current.status in setOf(MeetingStatus.FAILED, MeetingStatus.CANCELLED)) Button(onClick = {
@@ -164,6 +165,16 @@ private fun checkpointLabel(checkpoint: String): String = when {
     checkpoint.startsWith("segment-") -> "Segmento ${checkpoint.removePrefix("segment-")} concluído"
     checkpoint == "complete" -> "Processamento concluído"
     else -> checkpoint.replace('-', ' ')
+}
+
+private fun processingHint(status: MeetingStatus, checkpoint: String?): String = when {
+    status == MeetingStatus.QUEUED -> "A gravação foi salva e será transcrita localmente."
+    status == MeetingStatus.TRANSCRIBING -> "Whisper está convertendo o áudio em texto."
+    status == MeetingStatus.GENERATING -> "A transcrição está pronta; a ata factual está sendo montada."
+    status == MeetingStatus.READY -> "Transcrição e ata disponíveis para revisão."
+    status == MeetingStatus.FAILED && checkpoint?.startsWith("segment-") == true -> "A falha aconteceu depois de um trecho salvo; tente novamente para continuar."
+    status == MeetingStatus.FAILED -> "O processamento parou. Leia o detalhe abaixo antes de tentar novamente."
+    else -> ""
 }
 
 private fun canRegenerateSummary(error: String?, hasTranscript: Boolean): Boolean = hasTranscript && error?.let {
