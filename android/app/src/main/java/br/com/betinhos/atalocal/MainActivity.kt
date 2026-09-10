@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import br.com.betinhos.atalocal.data.AtaLocalDatabase
 import br.com.betinhos.atalocal.data.MeetingDao
+import br.com.betinhos.atalocal.pipeline.PipelineScheduler
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -86,6 +87,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             meetingDao.updateStatus(id, br.com.betinhos.atalocal.domain.MeetingStatus.RECORDED, duration)
         }
+        PipelineScheduler.enqueue(this, id)
         activeMeetingId = null
     }
 }
