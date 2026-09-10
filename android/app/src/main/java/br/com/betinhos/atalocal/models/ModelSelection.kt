@@ -5,6 +5,7 @@ import java.io.File
 
 fun selectWhisperModel(models: List<ModelInstallEntity>, preferredId: String? = null): String? = models.asSequence()
     .filter { it.kind == "whisper" }
+    .filter { it.status == "INSTALLED" }
     .sortedByDescending { it.id == preferredId }
     .map { File(it.filePath) }
     .firstOrNull(File::isFile)
@@ -12,6 +13,7 @@ fun selectWhisperModel(models: List<ModelInstallEntity>, preferredId: String? = 
 
 fun selectModel(models: List<ModelInstallEntity>, kind: String, preferredId: String? = null): String? = models.asSequence()
     .filter { it.kind == kind }
+    .filter { it.status == "INSTALLED" }
     .sortedByDescending { it.id == preferredId }
     .map { File(it.filePath) }
     .firstOrNull(File::isFile)

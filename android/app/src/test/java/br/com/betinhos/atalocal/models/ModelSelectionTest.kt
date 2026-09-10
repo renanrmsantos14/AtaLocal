@@ -31,4 +31,13 @@ class ModelSelectionTest {
             assertEquals(preferred.absolutePath, selectWhisperModel(models, "preferred"))
         } finally { first.delete(); preferred.delete() }
     }
+
+    @Test fun `ignora modelo com download falho mesmo com arquivo no caminho`() {
+        val file = File.createTempFile("whisper-failed", ".bin")
+        try {
+            assertNull(selectWhisperModel(listOf(
+                ModelInstallEntity("failed", "whisper", "1", file.path, 1, "hash", status = "FAILED")
+            )))
+        } finally { file.delete() }
+    }
 }
