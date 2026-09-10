@@ -362,6 +362,20 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
                         label = { Text("Título") }, singleLine = true)
                     OutlinedTextField(value = note, onValueChange = { note = it },
                         label = { Text("Observação (opcional)") }, minLines = 2)
+                    if (!hasWhisper || !hasLlm) {
+                        Text(
+                            when {
+                                !hasWhisper && !hasLlm -> "A gravação será salva, mas a transcrição e a ata aguardam os modelos locais."
+                                !hasWhisper -> "A gravação será salva, mas a transcrição aguarda um modelo Whisper."
+                                else -> "A transcrição será feita, mas a ata aguarda um modelo de resumo."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                        TextButton(onClick = { dialogOpen = false; showModels = true }) {
+                            Text("Abrir modelos antes de gravar")
+                        }
+                    }
                 }
             },
             confirmButton = {
