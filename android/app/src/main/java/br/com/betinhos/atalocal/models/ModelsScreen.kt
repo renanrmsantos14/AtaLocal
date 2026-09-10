@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import br.com.betinhos.atalocal.data.ModelInstallDao
 import kotlinx.coroutines.launch
 import java.io.File
+import br.com.betinhos.atalocal.data.ModelInstallEntity
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,15 +57,28 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(spec.id, style = MaterialTheme.typography.titleMedium)
                         Text("${spec.kind} · ${spec.sizeBytes / 1_000_000} MB")
-                        Text(if (model == null) "Não instalado" else "Instalado")
+                        Text(when (model?.status) {
+                            "DOWNLOADING" -> "Download em andamento"
+                            "FAILED" -> "Falha: ${model?.error ?: "tente novamente"}"
+                            "INSTALLED" -> "Instalado"
+                            else -> "Não instalado"
+                        })
                         Button(enabled = downloading == null, onClick = {
                             error = null
                             downloading = spec.id
                             scope.launch {
+                                val modelDirectory = context.filesDir.resolve("models")
+                                val target = modelDirectory.resolve(spec.id)
+                                val current = installed.find { it.id == spec.id }
+                                dao.upsert(current?.copy(status = "DOWNLOADING", downloadedBytes = modelDirectory.resolve("${spec.id}.download").length(), error = null)
+                                    ?: ModelInstallEntity(spec.id, spec.kind, spec.version, target.path, spec.sizeBytes, spec.sha256, status = "DOWNLOADING", downloadedBytes = modelDirectory.resolve("${spec.id}.download").length()))
                                 runCatching {
-                                    val file = ModelDownloader(context.filesDir.resolve("models")).download(spec) { done, total -> progress = done to total }
-                                    dao.upsert(br.com.betinhos.atalocal.data.ModelInstallEntity(spec.id, spec.kind, spec.version, file.path, spec.sizeBytes, spec.sha256))
-                                }.onFailure { error = it.message ?: "Falha ao baixar ${spec.id}" }
+                                    val file = ModelDownloader(modelDirectory).download(spec) { done, total -> progress = done to total }
+                                    dao.upsert(ModelInstallEntity(spec.id, spec.kind, spec.version, file.path, spec.sizeBytes, spec.sha256, status = "INSTALLED", downloadedBytes = spec.sizeBytes))
+                                }.onFailure {
+                                    error = it.message ?: "Falha ao baixar ${spec.id}"
+                                    dao.upsert(ModelInstallEntity(spec.id, spec.kind, spec.version, target.path, spec.sizeBytes, spec.sha256, status = "FAILED", downloadedBytes = modelDirectory.resolve("${spec.id}.download").length(), error = error))
+                                }
                                 downloading = null
                             }
                         }) { Text(if (downloading == spec.id) "Baixando ${progress.first}/${progress.second}" else "Baixar / atualizar") }
@@ -79,7 +93,10 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
             text = { Text("A reunião e a transcrição não serão apagadas. O modelo ${spec.id} será removido do aparelho.") },
             confirmButton = { TextButton(onClick = {
                 scope.launch {
-                    installed.find { it.id == spec.id }?.let { File(it.filePath).delete() }
+                    installed.find { it.id == spec.id }?.let {
+                        File(it.filePath).delete()
+                        File(it.filePath + ".download").delete()
+                    }
                     dao.delete(spec.id)
                     removeTarget = null
                 }

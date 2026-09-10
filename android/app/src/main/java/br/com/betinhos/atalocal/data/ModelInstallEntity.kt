@@ -11,5 +11,8 @@ data class ModelInstallEntity(
     val filePath: String,
     val sizeBytes: Long,
     val sha256: String,
-    val installedAtEpochMs: Long = System.currentTimeMillis()
+    val installedAtEpochMs: Long = System.currentTimeMillis(),
+    val status: String = "INSTALLED",
+    val downloadedBytes: Long = 0,
+    val error: String? = null
 )

@@ -15,7 +15,7 @@ class MeetingConverters {
 
 @Database(
     entities = [MeetingEntity::class, ProcessingJobEntity::class, TranscriptSegmentEntity::class, ModelInstallEntity::class, ArtifactEntity::class, AudioSegmentEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(MeetingConverters::class)
@@ -37,5 +37,13 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
 val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("CREATE TABLE IF NOT EXISTS audio_segments (`meetingId` TEXT NOT NULL, `sequence` INTEGER NOT NULL, `path` TEXT NOT NULL, `durationMs` INTEGER NOT NULL, `status` TEXT NOT NULL, `sha256` TEXT, `error` TEXT, PRIMARY KEY(`meetingId`, `sequence`))")
+    }
+}
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE model_installs ADD COLUMN status TEXT NOT NULL DEFAULT 'INSTALLED'")
+        database.execSQL("ALTER TABLE model_installs ADD COLUMN downloadedBytes INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE model_installs ADD COLUMN error TEXT")
     }
 }
