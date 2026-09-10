@@ -11,8 +11,14 @@ class MeetingConverters {
     @TypeConverter fun toStatus(value: String): MeetingStatus = MeetingStatus.valueOf(value)
 }
 
-@Database(entities = [MeetingEntity::class], version = 1, exportSchema = true)
+@Database(
+    entities = [MeetingEntity::class, ProcessingJobEntity::class, TranscriptSegmentEntity::class],
+    version = 1,
+    exportSchema = true
+)
 @TypeConverters(MeetingConverters::class)
 abstract class AtaLocalDatabase : RoomDatabase() {
     abstract fun meetingDao(): MeetingDao
+    abstract fun processingJobDao(): ProcessingJobDao
+    abstract fun transcriptSegmentDao(): TranscriptSegmentDao
 }

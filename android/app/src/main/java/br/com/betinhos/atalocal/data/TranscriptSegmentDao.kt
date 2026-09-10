@@ -1,0 +1,15 @@
+package br.com.betinhos.atalocal.data
+
+import androidx.room.Dao
+import androidx.room.Query
+import androidx.room.Upsert
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface TranscriptSegmentDao {
+    @Query("SELECT * FROM transcript_segments WHERE meetingId = :meetingId ORDER BY startMs")
+    fun observeAll(meetingId: String): Flow<List<TranscriptSegmentEntity>>
+
+    @Upsert
+    suspend fun upsertAll(segments: List<TranscriptSegmentEntity>)
+}
