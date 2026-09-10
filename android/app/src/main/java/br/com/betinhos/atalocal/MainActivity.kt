@@ -2,6 +2,7 @@ package br.com.betinhos.atalocal
 
 import android.os.Bundle
 import android.os.Build
+import android.os.StatFs
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -44,6 +45,7 @@ import br.com.betinhos.atalocal.pipeline.PipelineScheduler
 import br.com.betinhos.atalocal.models.ModelsScreen
 import br.com.betinhos.atalocal.models.selectWhisperModel
 import br.com.betinhos.atalocal.diagnostics.DiagnosticsScreen
+import br.com.betinhos.atalocal.diagnostics.formatBytes
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 
@@ -129,6 +131,8 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onTogglePause: () -> Unit, onOpenMeeting: (String) -> Unit, onOpenDiagnostics: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val availableStorage = remember { StatFs(context.filesDir.path).availableBytes }
     val meetings by dao.observeAll().collectAsState(initial = emptyList())
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var dialogOpen by remember { mutableStateOf(false) }
@@ -160,6 +164,7 @@ private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecord
                 ) { Text("Nova reunião") }
                 TextButton(onClick = { showModels = true }) { Text("Gerenciar modelos") }
                 TextButton(onClick = onOpenDiagnostics) { Text("Diagnóstico") }
+                Text("Espaço livre: ${formatBytes(availableStorage)}", style = MaterialTheme.typography.bodySmall)
             }
             items(meetings, key = { it.id }) { meeting ->
                 Card(modifier = Modifier.fillMaxWidth()) {
