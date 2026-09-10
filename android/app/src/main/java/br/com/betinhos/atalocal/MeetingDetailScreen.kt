@@ -91,6 +91,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
             item { Text("Ata", style = MaterialTheme.typography.titleLarge) }
             if (artifact == null) item { Text("A ata será gerada quando os modelos Whisper e Llama estiverem instalados.") }
             if (artifact != null) {
+                item { Text("Modelo usado: ${artifact.modelVersion ?: "não informado"}", style = MaterialTheme.typography.bodySmall) }
                 item { OutlinedTextField(edited, { edited = it }, Modifier.fillMaxWidth(), minLines = 12, label = { Text("Conteúdo editável") }) }
                 item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { PipelineScheduler.regenerateSummary(context, meetingId) }) { Text("Regenerar") }

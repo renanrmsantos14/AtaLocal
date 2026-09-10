@@ -3,6 +3,7 @@ package br.com.betinhos.atalocal.diagnostics
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,6 +39,12 @@ fun DiagnosticsScreen(modelDao: ModelInstallDao, meetingDao: MeetingDao, onBack:
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("Diagnóstico AtaLocal", report))
             }) { Text("Copiar diagnóstico") }
+            OutlinedButton(onClick = {
+                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, report)
+                }, "Compartilhar diagnóstico"))
+            }) { Text("Compartilhar diagnóstico") }
         }
     }
 }
