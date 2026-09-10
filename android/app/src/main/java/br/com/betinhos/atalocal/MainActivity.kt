@@ -50,6 +50,9 @@ import br.com.betinhos.atalocal.diagnostics.formatBytes
 import br.com.betinhos.atalocal.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import br.com.betinhos.atalocal.settings.RetentionPolicy
+import br.com.betinhos.atalocal.settings.cleanupExpiredAudio
 
 class MainActivity : ComponentActivity() {
     private var activeMeetingId: String? = null
@@ -70,6 +73,10 @@ class MainActivity : ComponentActivity() {
         val database = Room.databaseBuilder(applicationContext, AtaLocalDatabase::class.java, "atalocal.db").build()
         meetingDao = database.meetingDao()
         modelInstallDao = database.modelInstallDao()
+        lifecycleScope.launch(Dispatchers.IO) {
+            val days = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getInt("retention_days", 30)
+            cleanupExpiredAudio(filesDir.resolve("meetings"), meetingDao.listAll(), System.currentTimeMillis(), RetentionPolicy(days))
+        }
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
