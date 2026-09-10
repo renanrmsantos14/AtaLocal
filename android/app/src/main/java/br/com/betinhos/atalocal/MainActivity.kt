@@ -71,6 +71,7 @@ import br.com.betinhos.atalocal.settings.cleanupExpiredAudio
 import br.com.betinhos.atalocal.settings.cleanupExpiredDerivedData
 import br.com.betinhos.atalocal.data.DatabaseProvider
 import br.com.betinhos.atalocal.pipeline.PipelineRecovery
+import br.com.betinhos.atalocal.audio.hasRecordingStorage
 
 class MainActivity : ComponentActivity() {
     private var activeMeetingId: String? = null
@@ -159,6 +160,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestRecording(meetingId: String) {
+        val available = StatFs(filesDir.path).availableBytes
+        if (!hasRecordingStorage(available)) {
+            lifecycleScope.launch {
+                meetingDao.updateStatus(
+                    meetingId,
+                    br.com.betinhos.atalocal.domain.MeetingStatus.FAILED,
+                    error = "Pouco espaço para gravar. Libere pelo menos 50 MB e tente novamente."
+                )
+            }
+            openMeetingAfterStop = meetingId
+            return
+        }
         activeMeetingId = meetingId
         recordingStartedAt = System.currentTimeMillis()
         recordingUiMeetingId = meetingId
@@ -325,11 +338,13 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
                 TextButton(onClick = {
                     runCatching { br.com.betinhos.atalocal.domain.createMeeting(title, note) }
                         .onSuccess { meeting ->
-                            scope.launch { dao.upsert(meeting) }
+                            scope.launch {
+                                dao.upsert(meeting)
+                                onStartRecording(meeting.id)
+                            }
                             dialogOpen = false
                             title = ""
                             note = ""
-                            onStartRecording(meeting.id)
                         }
                 }, enabled = title.isNotBlank()) { Text("Criar") }
             },
