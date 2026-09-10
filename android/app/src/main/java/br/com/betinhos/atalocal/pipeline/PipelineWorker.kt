@@ -57,8 +57,8 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                     br.com.betinhos.atalocal.data.TranscriptSegmentEntity(
                         id = "$meetingId-$index-$itemIndex",
                         meetingId = meetingId,
-                        startMs = item.startMs + index * 60_000,
-                        endMs = item.endMs + index * 60_000,
+                        startMs = item.startMs + index * SEGMENT_STEP_MS,
+                        endMs = item.endMs + index * SEGMENT_STEP_MS,
                         text = item.text,
                         confidence = item.confidence
                     )
@@ -109,6 +109,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
 
     companion object {
         private const val TAG = "AtaLocalPipeline"
+        private const val SEGMENT_STEP_MS = 59_000L
         const val KEY_MEETING_ID = "meeting_id"
         const val KEY_MODEL_PATH = "whisper_model_path"
         const val KEY_AUDIO_DIRECTORY = "audio_directory"

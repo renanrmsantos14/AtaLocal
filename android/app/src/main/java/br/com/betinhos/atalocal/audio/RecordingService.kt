@@ -84,6 +84,7 @@ class RecordingService : Service() {
         val buffer = ShortArray(bufferSize)
         var sequence = (store.recover().mapNotNull { Regex("segment-(\\d+)\\.wav").matchEntire(it.name)?.groupValues?.get(1)?.toIntOrNull() }.maxOrNull()?.plus(1) ?: 0)
         var samplesInSegment = 0
+        val tail = AudioTail(OVERLAP_SAMPLES)
         var writer = WavSegmentWriter(store.temporary(sequence)).also { it.open() }
         var lastLevelReport = 0L
         try {
@@ -105,6 +106,7 @@ class RecordingService : Service() {
                 while (offset < count && running) {
                     val available = minOf(count - offset, SAMPLES_PER_SEGMENT - samplesInSegment)
                     writer.write(buffer.copyOfRange(offset, offset + available), available)
+                    tail.append(buffer, offset, available)
                     offset += available
                     samplesInSegment += available
                     if (samplesInSegment == SAMPLES_PER_SEGMENT) {
@@ -112,8 +114,10 @@ class RecordingService : Service() {
                         val completed = store.commit(sequence)
                         persistSegment(completed, sequence, SAMPLES_PER_SEGMENT)
                         sequence += 1
-                        samplesInSegment = 0
                         writer = WavSegmentWriter(store.temporary(sequence)).also { it.open() }
+                        val overlap = tail.snapshot()
+                        writer.write(overlap, overlap.size)
+                        samplesInSegment = overlap.size
                     }
                 }
             }
@@ -161,6 +165,7 @@ class RecordingService : Service() {
         const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
         const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
         const val SAMPLES_PER_SEGMENT = SAMPLE_RATE * 60
+        const val OVERLAP_SAMPLES = SAMPLE_RATE
         const val CHANNEL_ID = "recording"
         const val NOTIFICATION_ID = 1001
     }
