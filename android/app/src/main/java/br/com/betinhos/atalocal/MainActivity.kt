@@ -72,6 +72,7 @@ import br.com.betinhos.atalocal.settings.cleanupExpiredDerivedData
 import br.com.betinhos.atalocal.data.DatabaseProvider
 import br.com.betinhos.atalocal.pipeline.PipelineRecovery
 import br.com.betinhos.atalocal.audio.hasRecordingStorage
+import br.com.betinhos.atalocal.audio.RecordingSessionStore
 
 class MainActivity : ComponentActivity() {
     private var activeMeetingId: String? = null
@@ -122,6 +123,12 @@ class MainActivity : ComponentActivity() {
         val database = DatabaseProvider.get(applicationContext)
         meetingDao = database.meetingDao()
         modelInstallDao = database.modelInstallDao()
+        RecordingSessionStore(filesDir.resolve("meetings")).active()?.let { active ->
+            activeMeetingId = active.meetingId
+            recordingStartedAt = active.startedAtEpochMs
+            recordingUiMeetingId = active.meetingId
+            recordingUiStartedAt = active.startedAtEpochMs
+        }
         ContextCompat.registerReceiver(this, levelReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_LEVEL), ContextCompat.RECEIVER_NOT_EXPORTED)
         ContextCompat.registerReceiver(this, stoppedReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_STOPPED), ContextCompat.RECEIVER_NOT_EXPORTED)
         ContextCompat.registerReceiver(this, recordingErrorReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_ERROR), ContextCompat.RECEIVER_NOT_EXPORTED)

@@ -23,6 +23,8 @@ class RecordingService : Service() {
     private var running = false
     @Volatile private var paused = false
     private var segmentStore: SegmentFileStore? = null
+    private var sessionMeetingId: String? = null
+    private val sessionStore by lazy { RecordingSessionStore(filesDir.resolve("meetings")) }
 
     override fun onCreate() {
         super.onCreate()
@@ -45,6 +47,7 @@ class RecordingService : Service() {
             startForeground(NOTIFICATION_ID, notification())
             if (!running) startCapture(intent?.getStringExtra(EXTRA_DIRECTORY), intent?.getStringExtra(EXTRA_MEETING_ID))
         } catch (error: Throwable) {
+            intent?.getStringExtra(EXTRA_MEETING_ID)?.let(sessionStore::clear)
             sendBroadcast(
                 Intent(ACTION_ERROR)
                     .setPackage(packageName)
@@ -69,6 +72,8 @@ class RecordingService : Service() {
 
     private fun startCapture(directory: String?, meetingId: String?) {
         currentMeetingId = meetingId
+        sessionMeetingId = meetingId
+        meetingId?.let { sessionStore.start(it, System.currentTimeMillis()) }
         val root = File(directory ?: filesDir.resolve("segments").path)
         segmentStore = SegmentFileStore(root)
         val minimum = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
@@ -87,6 +92,7 @@ class RecordingService : Service() {
         val tail = AudioTail(OVERLAP_SAMPLES)
         var writer = WavSegmentWriter(store.temporary(sequence)).also { it.open() }
         var lastLevelReport = 0L
+        var lastHeartbeat = 0L
         try {
             while (running) {
                 if (paused) {
@@ -96,6 +102,10 @@ class RecordingService : Service() {
                 val count = recorder?.read(buffer, 0, buffer.size) ?: 0
                 if (count <= 0) continue
                 val now = SystemClock.elapsedRealtime()
+                if (now - lastHeartbeat >= 5_000L) {
+                    sessionMeetingId?.let(sessionStore::touch)
+                    lastHeartbeat = now
+                }
                 if (now - lastLevelReport >= 150) {
                     var peak = 0
                     for (index in 0 until count) peak = maxOf(peak, kotlin.math.abs(buffer[index].toInt()))
@@ -127,6 +137,7 @@ class RecordingService : Service() {
                 val completed = store.commit(sequence)
                 persistSegment(completed, sequence, samplesInSegment)
             }
+            sessionMeetingId?.let(sessionStore::clear)
             sendBroadcast(
                 Intent(ACTION_STOPPED)
                     .setPackage(packageName)
