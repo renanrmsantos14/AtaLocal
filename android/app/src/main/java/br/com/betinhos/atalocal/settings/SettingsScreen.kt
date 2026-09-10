@@ -3,6 +3,8 @@ package br.com.betinhos.atalocal.settings
 import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -51,14 +53,14 @@ fun SettingsScreen(modelDao: ModelInstallDao, onBack: () -> Unit) {
                 }
             }
             Text("Modelo Whisper padrão")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                installed.filter { it.kind == "whisper" }.forEach { model ->
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                items(installed.filter { it.kind == "whisper" }) { model ->
                     FilterChip(selected = defaultWhisper == model.id, onClick = { defaultWhisper = model.id; save(KEY_DEFAULT_WHISPER, model.id) }, label = { Text(model.id.substringBefore(".bin")) })
                 }
             }
             Text("Modelo de ata padrão")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                installed.filter { it.kind == "llm" }.forEach { model ->
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                items(installed.filter { it.kind == "llm" }) { model ->
                     FilterChip(selected = defaultLlm == model.id, onClick = { defaultLlm = model.id; save(KEY_DEFAULT_LLM, model.id) }, label = { Text(model.id.substringBefore(".gguf")) })
                 }
             }
