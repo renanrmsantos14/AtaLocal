@@ -39,7 +39,7 @@ class RecordingService : Service() {
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, notification())
-        if (!running) startCapture(intent?.getStringExtra(EXTRA_DIRECTORY))
+        if (!running) startCapture(intent?.getStringExtra(EXTRA_DIRECTORY), intent?.getStringExtra(EXTRA_MEETING_ID))
         return START_STICKY
     }
 
@@ -54,7 +54,8 @@ class RecordingService : Service() {
         super.onDestroy()
     }
 
-    private fun startCapture(directory: String?) {
+    private fun startCapture(directory: String?, meetingId: String?) {
+        currentMeetingId = meetingId
         val root = File(directory ?: filesDir.resolve("segments").path)
         segmentStore = SegmentFileStore(root)
         val minimum = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
@@ -105,6 +106,11 @@ class RecordingService : Service() {
         } finally {
             writer.close()
             if (samplesInSegment > 0) store.commit(sequence)
+            sendBroadcast(
+                Intent(ACTION_STOPPED)
+                    .setPackage(packageName)
+                    .putExtra(EXTRA_MEETING_ID, currentMeetingId)
+            )
         }
     }
 
@@ -119,8 +125,10 @@ class RecordingService : Service() {
         const val ACTION_STOP = "br.com.betinhos.atalocal.audio.STOP"
         const val ACTION_TOGGLE_PAUSE = "br.com.betinhos.atalocal.audio.TOGGLE_PAUSE"
         const val ACTION_LEVEL = "br.com.betinhos.atalocal.audio.LEVEL"
+        const val ACTION_STOPPED = "br.com.betinhos.atalocal.audio.STOPPED"
         const val EXTRA_LEVEL = "microphone_level"
         const val EXTRA_DIRECTORY = "segment_directory"
+        const val EXTRA_MEETING_ID = "meeting_id"
         const val SAMPLE_RATE = 16_000
         const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
         const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
@@ -128,4 +136,6 @@ class RecordingService : Service() {
         const val CHANNEL_ID = "recording"
         const val NOTIFICATION_ID = 1001
     }
+
+    private var currentMeetingId: String? = null
 }

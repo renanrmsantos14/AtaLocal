@@ -83,6 +83,18 @@ class MainActivity : ComponentActivity() {
     private val levelReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) { microphoneLevel = intent.getFloatExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_LEVEL, 0f) }
     }
+    private val stoppedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val id = intent.getStringExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_MEETING_ID) ?: return
+            if (getSharedPreferences("atalocal.settings", MODE_PRIVATE).getBoolean("auto_process", true)) {
+                lifecycleScope.launch {
+                    val modelPath = selectWhisperModel(modelInstallDao.observeAll().first())
+                    val language = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
+                    PipelineScheduler.enqueue(this@MainActivity, id, modelPath, language)
+                }
+            }
+        }
+    }
     private val microphonePermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -99,6 +111,7 @@ class MainActivity : ComponentActivity() {
         meetingDao = database.meetingDao()
         modelInstallDao = database.modelInstallDao()
         ContextCompat.registerReceiver(this, levelReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_LEVEL), ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, stoppedReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_STOPPED), ContextCompat.RECEIVER_NOT_EXPORTED)
         lifecycleScope.launch(Dispatchers.IO) {
             val days = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getInt("retention_days", 30)
             cleanupExpiredAudio(filesDir.resolve("meetings"), meetingDao.listAll(), System.currentTimeMillis(), RetentionPolicy(days))
@@ -128,6 +141,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         unregisterReceiver(levelReceiver)
+        unregisterReceiver(stoppedReceiver)
         super.onDestroy()
     }
 
@@ -150,22 +164,19 @@ class MainActivity : ComponentActivity() {
                 br.com.betinhos.atalocal.audio.RecordingService.EXTRA_DIRECTORY,
                 filesDir.resolve("meetings").resolve(activeMeetingId ?: "unknown").resolve("segments").path
             )
+            .putExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_MEETING_ID, activeMeetingId)
         ContextCompat.startForegroundService(this, intent)
     }
 
     private fun stopRecording() {
-        stopService(Intent(this, br.com.betinhos.atalocal.audio.RecordingService::class.java))
         val id = activeMeetingId ?: return
+        startService(Intent(this, br.com.betinhos.atalocal.audio.RecordingService::class.java).apply {
+            action = br.com.betinhos.atalocal.audio.RecordingService.ACTION_STOP
+            putExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_MEETING_ID, id)
+        })
         val duration = ((System.currentTimeMillis() - recordingStartedAt) / 1000).coerceAtLeast(0)
         lifecycleScope.launch {
             meetingDao.updateStatus(id, br.com.betinhos.atalocal.domain.MeetingStatus.RECORDED, duration)
-        }
-        if (getSharedPreferences("atalocal.settings", MODE_PRIVATE).getBoolean("auto_process", true)) {
-            lifecycleScope.launch {
-                val modelPath = selectWhisperModel(modelInstallDao.observeAll().first())
-                val language = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
-                PipelineScheduler.enqueue(this@MainActivity, id, modelPath, language)
-            }
         }
         activeMeetingId = null
         recordingUiMeetingId = null
