@@ -71,6 +71,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
             if (artifact != null) {
                 item { OutlinedTextField(edited, { edited = it }, Modifier.fillMaxWidth(), minLines = 12, label = { Text("Conteúdo editável") }) }
                 item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { PipelineScheduler.regenerateSummary(context, meetingId) }) { Text("Regenerar") }
                     Button(onClick = { scope.launch { database.artifactDao().upsert(artifact.copy(content = edited, editedByUser = true)) } }) { Text("Salvar") }
                     OutlinedButton(onClick = {
                         val send = Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/markdown"; putExtra(Intent.EXTRA_TEXT, edited) }, "Compartilhar ata")

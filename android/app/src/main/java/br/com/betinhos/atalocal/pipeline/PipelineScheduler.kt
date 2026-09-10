@@ -26,4 +26,9 @@ object PipelineScheduler {
             request
         )
     }
+
+    fun regenerateSummary(context: Context, meetingId: String) {
+        val request = OneTimeWorkRequestBuilder<SummaryWorker>().setInputData(workDataOf(SummaryWorker.KEY_MEETING_ID to meetingId)).build()
+        WorkManager.getInstance(context).enqueueUniqueWork("summary-$meetingId", ExistingWorkPolicy.REPLACE, request)
+    }
 }
