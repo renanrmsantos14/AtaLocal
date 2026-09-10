@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CancellationException
 import java.io.File
 import android.util.Log
+import br.com.betinhos.atalocal.audio.isValidPcm16MonoWav
 
 class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
@@ -29,6 +30,8 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             val audioDirectory = File(inputData.getString(KEY_AUDIO_DIRECTORY) ?: "")
             val segments = audioDirectory.listFiles { file -> file.extension == "wav" }?.sortedBy { it.name }.orEmpty()
             if (segments.isEmpty()) return fail(database, meetingId, "Nenhum segmento de áudio finalizado")
+            val invalidAudio = segments.firstOrNull { !isValidPcm16MonoWav(it) }
+            if (invalidAudio != null) return fail(database, meetingId, "Áudio inválido no segmento ${invalidAudio.name}. Grave novamente e tente processar.")
 
         return try {
             meetingDao.updateStatusClearingError(meetingId, MeetingStatus.TRANSCRIBING)
