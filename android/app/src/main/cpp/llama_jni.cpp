@@ -9,7 +9,7 @@
 namespace {
 constexpr const char *TAG = "AtaLocalLlama";
 constexpr uint32_t CONTEXT_TOKENS = 4096;
-constexpr uint32_t BATCH_TOKENS = 4096;
+constexpr uint32_t BATCH_TOKENS = 512;
 constexpr uint32_t UBATCH_TOKENS = 512;
 std::mutex generation_mutex;
 
@@ -20,6 +20,19 @@ void throw_illegal_state(JNIEnv *env, const char *message) {
 void ensure_backend_initialized() {
     static std::once_flag initialized;
     std::call_once(initialized, [] { llama_backend_init(); });
+}
+
+bool decode_prompt_in_batches(llama_context *context, std::vector<llama_token> &tokens) {
+    for (size_t offset = 0; offset < tokens.size(); offset += BATCH_TOKENS) {
+        const auto count = static_cast<int32_t>(std::min<size_t>(BATCH_TOKENS, tokens.size() - offset));
+        llama_batch batch = llama_batch_get_one(tokens.data() + offset, count);
+        if (llama_decode(context, batch) != 0) {
+            __android_log_print(ANDROID_LOG_ERROR, TAG,
+                "Falha ao decodificar prompt no bloco %zu (%d tokens)", offset / BATCH_TOKENS + 1, count);
+            return false;
+        }
+    }
+    return true;
 }
 
 std::string format_chat_prompt(const llama_model *model, const char *prompt) {
@@ -56,6 +69,7 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
         return nullptr;
     }
     llama_model_params model_params = llama_model_default_params();
+    __android_log_print(ANDROID_LOG_INFO, TAG, "Carregando modelo para geração da ata");
     llama_model *loaded = llama_model_load_from_file(model, model_params);
     if (!loaded) {
         __android_log_print(ANDROID_LOG_ERROR, TAG, "Falha ao carregar modelo Llama: %s", model);
@@ -68,6 +82,8 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
     context_params.n_ctx = CONTEXT_TOKENS;
     context_params.n_batch = BATCH_TOKENS;
     context_params.n_ubatch = UBATCH_TOKENS;
+    __android_log_print(ANDROID_LOG_INFO, TAG,
+        "Criando contexto: n_ctx=%u n_batch=%u n_ubatch=%u", CONTEXT_TOKENS, BATCH_TOKENS, UBATCH_TOKENS);
     llama_context *context = llama_init_from_model(loaded, context_params);
     if (!context) {
         throw_illegal_state(env, "Não foi possível iniciar o contexto do modelo de ata.");
@@ -128,8 +144,8 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
         throw_illegal_state(env, "A transcrição é longa demais para gerar a ata neste modelo.");
         return nullptr;
     }
-    llama_batch batch = llama_batch_get_one(tokens.data(), static_cast<int32_t>(tokens.size()));
-    if (llama_decode(context, batch) == 0) {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "Decodificando prompt com %zu tokens em lotes de %u", tokens.size(), BATCH_TOKENS);
+    if (decode_prompt_in_batches(context, tokens)) {
         for (int i = 0; i < max_tokens; ++i) {
             llama_token token = llama_sampler_sample(sampler, context, -1);
             if (llama_vocab_is_eog(vocab, token)) break;
@@ -137,14 +153,17 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
             const int length = llama_token_to_piece(vocab, token, piece, sizeof(piece), 0, true);
             if (length > 0) output.append(piece, length);
             llama_sampler_accept(sampler, token);
-            batch = llama_batch_get_one(&token, 1);
+            llama_batch batch = llama_batch_get_one(&token, 1);
             if (llama_decode(context, batch) != 0) break;
         }
+    } else {
+        throw_illegal_state(env, "Não foi possível processar a transcrição para gerar a ata.");
     }
     llama_sampler_free(sampler);
     llama_free(context);
     llama_model_free(loaded);
     env->ReleaseStringUTFChars(model_path, model);
     env->ReleaseStringUTFChars(prompt, prompt_utf);
+    if (env->ExceptionCheck()) return nullptr;
     return env->NewStringUTF(output.c_str());
 }

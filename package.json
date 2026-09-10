@@ -1,7 +1,7 @@
 {
   "name": "atalocal",
   "private": true,
-  "version": "0.4.15",
+  "version": "0.4.16",
   "type": "module",
   "description": "Transcricao e ata de reunioes presenciais, 100% local.",
   "scripts": {
