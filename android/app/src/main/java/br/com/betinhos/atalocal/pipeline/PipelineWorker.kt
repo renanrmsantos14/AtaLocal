@@ -66,6 +66,11 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             meetingDao.updateStatus(meetingId, MeetingStatus.READY)
             Result.success()
         } catch (error: Throwable) {
+            if (runAttemptCount < 2) {
+                database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.QUEUED, error = "Tentativa ${runAttemptCount + 1} falhou; tentando novamente"))
+                meetingDao.updateStatus(meetingId, MeetingStatus.QUEUED)
+                return Result.retry()
+            }
             fail(database, meetingId, error.message ?: "Falha nativa do Whisper")
         }
     }

@@ -7,6 +7,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import java.util.concurrent.TimeUnit
 
 object PipelineScheduler {
     fun enqueue(context: Context, meetingId: String, modelPath: String? = null) {
@@ -16,6 +17,7 @@ object PipelineScheduler {
                 PipelineWorker.KEY_MODEL_PATH to modelPath,
                 PipelineWorker.KEY_AUDIO_DIRECTORY to context.filesDir.resolve("meetings").resolve(meetingId).resolve("segments").path
             ))
+            .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.NOT_REQUIRED).build())
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
