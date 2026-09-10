@@ -1,7 +1,11 @@
 package br.com.betinhos.atalocal
 
 import android.os.Bundle
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -28,15 +32,47 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.room.Room
+import androidx.core.content.ContextCompat
 import br.com.betinhos.atalocal.data.AtaLocalDatabase
 import br.com.betinhos.atalocal.data.MeetingDao
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val microphonePermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) startRecordingService()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val database = Room.databaseBuilder(applicationContext, AtaLocalDatabase::class.java, "atalocal.db").build()
-        setContent { AtaLocalTheme { HomeScreen(database.meetingDao()) } }
+        setContent {
+            AtaLocalTheme {
+                HomeScreen(database.meetingDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording)
+            }
+        }
+    }
+
+    private fun requestRecording() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startRecordingService()
+        } else {
+            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun startRecordingService() {
+        val intent = Intent(this, br.com.betinhos.atalocal.audio.RecordingService::class.java)
+            .putExtra(
+                br.com.betinhos.atalocal.audio.RecordingService.EXTRA_DIRECTORY,
+                filesDir.resolve("segments").path
+            )
+        ContextCompat.startForegroundService(this, intent)
+    }
+
+    private fun stopRecording() {
+        stopService(Intent(this, br.com.betinhos.atalocal.audio.RecordingService::class.java))
     }
 }
 
@@ -46,7 +82,7 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun HomeScreen(dao: MeetingDao) {
+private fun HomeScreen(dao: MeetingDao, onStartRecording: () -> Unit, onStopRecording: () -> Unit) {
     val meetings by dao.observeAll().collectAsState(initial = emptyList())
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var dialogOpen by remember { mutableStateOf(false) }
@@ -77,6 +113,9 @@ private fun HomeScreen(dao: MeetingDao) {
                         Text(meetings.firstOrNull()?.title ?: "Nenhuma reunião ainda", style = MaterialTheme.typography.titleMedium)
                         Text(if (meetings.isEmpty()) "Sua primeira gravação ficará armazenada somente neste aparelho."
                         else "${meetings.size} reunião(ões) armazenada(s) neste aparelho.")
+                        if (meetings.isNotEmpty()) {
+                            TextButton(onClick = onStopRecording) { Text("Parar gravação") }
+                        }
                     }
                 }
             }
@@ -103,6 +142,7 @@ private fun HomeScreen(dao: MeetingDao) {
                             dialogOpen = false
                             title = ""
                             note = ""
+                            onStartRecording()
                         }
                 }, enabled = title.isNotBlank()) { Text("Criar") }
             },

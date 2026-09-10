@@ -28,6 +28,10 @@ class RecordingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         startForeground(NOTIFICATION_ID, notification())
         if (!running) startCapture(intent?.getStringExtra(EXTRA_DIRECTORY))
         return START_STICKY
@@ -93,7 +97,8 @@ class RecordingService : Service() {
         .setOngoing(true)
         .build()
 
-    private companion object {
+    companion object {
+        const val ACTION_STOP = "br.com.betinhos.atalocal.audio.STOP"
         const val EXTRA_DIRECTORY = "segment_directory"
         const val SAMPLE_RATE = 16_000
         const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
