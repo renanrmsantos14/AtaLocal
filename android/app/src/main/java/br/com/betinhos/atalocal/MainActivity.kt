@@ -32,6 +32,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -50,6 +52,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.height
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -258,7 +261,14 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
         surfaceVariant = Color(0xFF202B3A), onSurfaceVariant = Color(0xFFBEC8D8),
         error = Color(0xFFFFB4AB)
     )
-    MaterialTheme(colorScheme = dark, typography = androidx.compose.material3.Typography(), content = content)
+    MaterialTheme(
+        colorScheme = dark,
+        typography = androidx.compose.material3.Typography().run {
+            copy(bodyLarge = bodyLarge.copy(lineHeight = 26.sp), bodyMedium = bodyMedium.copy(lineHeight = 23.sp))
+        },
+        shapes = Shapes(small = RoundedCornerShape(8.dp), medium = RoundedCornerShape(14.dp), large = RoundedCornerShape(20.dp)),
+        content = content
+    )
 }
 
 @Composable
@@ -336,10 +346,16 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
                 Card(modifier = Modifier.fillMaxWidth().animateContentSize(), shape = RoundedCornerShape(20.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { onOpenMeeting(meeting.id) }) { Text(meeting.title, style = MaterialTheme.typography.titleMedium) }
-                        Text("${meeting.status.userLabel()} · ${meeting.durationSeconds}s")
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            StatusLabel(meeting.status)
+                            Text(formatHomeDuration(meeting.durationSeconds), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         if (job != null && meeting.status in setOf(br.com.betinhos.atalocal.domain.MeetingStatus.QUEUED, br.com.betinhos.atalocal.domain.MeetingStatus.TRANSCRIBING, br.com.betinhos.atalocal.domain.MeetingStatus.GENERATING)) {
                             if (job!!.progress > 0f) LinearProgressIndicator(progress = { job!!.progress }, Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth())
-                            Text(job!!.checkpoint?.let(::homeCheckpointLabel) ?: "Processando localmente…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(job!!.checkpoint?.let(::homeCheckpointLabel) ?: "Processando localmente…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${(job!!.progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
                         }
                         meeting.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         if (meeting.status == br.com.betinhos.atalocal.domain.MeetingStatus.RECORDING) {
@@ -397,6 +413,16 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
         )
     }
 }
+
+@Composable
+private fun StatusLabel(status: br.com.betinhos.atalocal.domain.MeetingStatus) {
+    val active = status in setOf(br.com.betinhos.atalocal.domain.MeetingStatus.RECORDING, br.com.betinhos.atalocal.domain.MeetingStatus.TRANSCRIBING, br.com.betinhos.atalocal.domain.MeetingStatus.GENERATING)
+    Surface(color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
+        Text(status.userLabel(), Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+private fun formatHomeDuration(seconds: Long): String = "%02d:%02d".format(seconds / 60, seconds % 60)
 
 private fun homeCheckpointLabel(checkpoint: String): String = when {
     checkpoint == "queued" -> "Aguardando processamento local…"
