@@ -19,6 +19,7 @@ class JniWhisperEngine : WhisperEngine {
         require(model.isFile) { "Modelo Whisper ausente: ${model.name}" }
         require(audio.isFile) { "Áudio ausente: ${audio.name}" }
         val raw = WhisperNative.transcribeJson(model.absolutePath, audio.absolutePath, language)
+            ?: error("Whisper não retornou resultado para ${audio.name}")
         val json = JSONArray(raw)
         return List(json.length()) { index ->
             val item = json.getJSONObject(index)

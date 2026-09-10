@@ -16,4 +16,11 @@ class MeetingStatusTest {
         assertEquals(null, MeetingStatus.FAILED.next())
         assertEquals(null, MeetingStatus.CANCELLED.next())
     }
+
+    @Test fun exposesPortugueseUserFacingLabels() {
+        assertEquals("Transcrevendo áudio", MeetingStatus.TRANSCRIBING.userLabel())
+        assertEquals("Gerando ata", MeetingStatus.GENERATING.userLabel())
+        assertEquals("Pronta", MeetingStatus.READY.userLabel())
+        assertEquals("Falhou", MeetingStatus.FAILED.userLabel())
+    }
 }

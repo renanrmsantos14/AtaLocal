@@ -20,6 +20,7 @@ import androidx.work.WorkManager
 import br.com.betinhos.atalocal.models.selectWhisperModel
 import br.com.betinhos.atalocal.pipeline.PipelineScheduler
 import br.com.betinhos.atalocal.domain.MeetingStatus
+import br.com.betinhos.atalocal.domain.userLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,17 +40,29 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
         TextButton(onClick = onBack) { Text("Voltar") }
     }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
-            item { Text(meeting?.status?.name ?: "", style = MaterialTheme.typography.labelLarge) }
+            item { Text(meeting?.status?.userLabel() ?: "", style = MaterialTheme.typography.labelLarge) }
             job?.let { current ->
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Processamento: ${current.status.name}")
-                        LinearProgressIndicator(progress = { current.progress }, Modifier.fillMaxWidth())
+                        Text(current.status.userLabel(), style = MaterialTheme.typography.titleMedium)
+                        if (current.status == MeetingStatus.TRANSCRIBING && current.progress <= 0f) {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                        } else {
+                            LinearProgressIndicator(progress = { current.progress }, Modifier.fillMaxWidth())
+                        }
+                        current.checkpoint?.takeIf { it.startsWith("segment-") }?.let {
+                            Text("Segmento $it", style = MaterialTheme.typography.bodySmall)
+                        }
                         current.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        if (current.status == MeetingStatus.TRANSCRIBING && current.error == null) {
+                            Text("O áudio está sendo processado localmente. Isso pode levar alguns minutos em modelos maiores.", style = MaterialTheme.typography.bodySmall)
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (current.status == MeetingStatus.FAILED) Button(onClick = {
+                            if (current.status in setOf(MeetingStatus.FAILED, MeetingStatus.CANCELLED)) Button(onClick = {
                                 scope.launch {
                                     val language = context.getSharedPreferences("atalocal.settings", android.content.Context.MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
+                                    database.processingJobDao().upsert(br.com.betinhos.atalocal.data.ProcessingJobEntity(meetingId, MeetingStatus.QUEUED, checkpoint = "queued"))
+                                    database.meetingDao().updateStatus(meetingId, MeetingStatus.QUEUED)
                                     PipelineScheduler.enqueue(context, meetingId, selectWhisperModel(database.modelInstallDao().observeAll().first()), language)
                                 }
                             }) { Text("Tentar novamente") }

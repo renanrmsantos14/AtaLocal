@@ -59,6 +59,7 @@ import br.com.betinhos.atalocal.data.ModelInstallDao
 import br.com.betinhos.atalocal.pipeline.PipelineScheduler
 import br.com.betinhos.atalocal.models.ModelsScreen
 import br.com.betinhos.atalocal.models.selectWhisperModel
+import br.com.betinhos.atalocal.domain.userLabel
 import br.com.betinhos.atalocal.diagnostics.DiagnosticsScreen
 import br.com.betinhos.atalocal.diagnostics.formatBytes
 import br.com.betinhos.atalocal.settings.SettingsScreen
@@ -236,7 +237,7 @@ private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecord
                 Card(modifier = Modifier.fillMaxWidth().animateContentSize(), shape = RoundedCornerShape(20.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { onOpenMeeting(meeting.id) }) { Text(meeting.title, style = MaterialTheme.typography.titleMedium) }
-                        Text("${meeting.status.name.lowercase()} · ${meeting.durationSeconds}s")
+                        Text("${meeting.status.userLabel()} · ${meeting.durationSeconds}s")
                         meeting.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         if (meeting.status == br.com.betinhos.atalocal.domain.MeetingStatus.RECORDING) {
                             TextButton(onClick = onTogglePause) { Text("Pausar / continuar") }

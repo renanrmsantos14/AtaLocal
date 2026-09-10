@@ -35,6 +35,15 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             val engine = JniWhisperEngine()
             dao.deleteForMeeting(meetingId)
             segments.forEachIndexed { index, audio ->
+                val segmentProgress = index.toFloat() / segments.size
+                database.processingJobDao().upsert(
+                    ProcessingJobEntity(
+                        meetingId,
+                        MeetingStatus.TRANSCRIBING,
+                        segmentProgress,
+                        "segment-${index + 1}/${segments.size}"
+                    )
+                )
                 val transcript = engine.transcribe(File(modelPath), audio, language)
                 dao.upsertAll(transcript.mapIndexed { itemIndex, item ->
                     br.com.betinhos.atalocal.data.TranscriptSegmentEntity(
@@ -48,8 +57,11 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                 })
                 database.processingJobDao().upsert(
                     ProcessingJobEntity(meetingId, MeetingStatus.TRANSCRIBING,
-                        (index + 1).toFloat() / segments.size, index.toString())
+                        (index + 1).toFloat() / segments.size, "segment-${index + 1}/${segments.size}")
                 )
+            }
+            if (dao.listAll(meetingId).isEmpty()) {
+                return fail(database, meetingId, "Nenhuma fala foi detectada. Tente gravar mais perto do microfone e processe novamente.")
             }
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.TRANSCRIBED, 1f, "complete"))
             val models = database.modelInstallDao().observeAll().first()

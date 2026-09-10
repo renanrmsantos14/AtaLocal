@@ -5,6 +5,19 @@ enum class MeetingStatus {
     GENERATING, READY, FAILED, CANCELLED
 }
 
+fun MeetingStatus.userLabel(): String = when (this) {
+    MeetingStatus.DRAFT -> "Rascunho"
+    MeetingStatus.RECORDING -> "Gravando"
+    MeetingStatus.RECORDED -> "Áudio salvo"
+    MeetingStatus.QUEUED -> "Na fila"
+    MeetingStatus.TRANSCRIBING -> "Transcrevendo áudio"
+    MeetingStatus.TRANSCRIBED -> "Transcrição pronta"
+    MeetingStatus.GENERATING -> "Gerando ata"
+    MeetingStatus.READY -> "Pronta"
+    MeetingStatus.FAILED -> "Falhou"
+    MeetingStatus.CANCELLED -> "Cancelada"
+}
+
 fun MeetingStatus.next(): MeetingStatus? = when (this) {
     MeetingStatus.DRAFT -> MeetingStatus.RECORDING
     MeetingStatus.RECORDING -> MeetingStatus.RECORDED
