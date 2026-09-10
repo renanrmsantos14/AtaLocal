@@ -36,7 +36,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import br.com.betinhos.atalocal.data.AtaLocalDatabase
 import br.com.betinhos.atalocal.data.MeetingDao
+import br.com.betinhos.atalocal.data.ModelInstallDao
 import br.com.betinhos.atalocal.pipeline.PipelineScheduler
+import br.com.betinhos.atalocal.models.ModelsScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -55,7 +57,7 @@ class MainActivity : ComponentActivity() {
         meetingDao = database.meetingDao()
         setContent {
             AtaLocalTheme {
-                HomeScreen(meetingDao, onStartRecording = ::requestRecording, onStopRecording = ::stopRecording)
+                HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording)
             }
         }
     }
@@ -98,12 +100,18 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun HomeScreen(dao: MeetingDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit) {
+private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit) {
     val meetings by dao.observeAll().collectAsState(initial = emptyList())
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var dialogOpen by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var showModels by remember { mutableStateOf(false) }
+
+    if (showModels) {
+        ModelsScreen(modelDao) { showModels = false }
+        return
+    }
 
     Scaffold(topBar = { TopAppBar(title = { Text("AtaLocal") }) }) { insets ->
         LazyColumn(
@@ -122,6 +130,7 @@ private fun HomeScreen(dao: MeetingDao, onStartRecording: (String) -> Unit, onSt
                     onClick = { dialogOpen = true },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Nova reunião") }
+                TextButton(onClick = { showModels = true }) { Text("Gerenciar modelos") }
             }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
