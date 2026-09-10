@@ -10,9 +10,9 @@ class AudioRetentionTest {
         val root = createTempDir()
         try {
             val old = MeetingEntity("old", "old", 0)
-            val fresh = MeetingEntity("fresh", "fresh", 95)
+            val fresh = MeetingEntity("fresh", "fresh", 29 * 86_400_000L)
             File(root, "old").mkdirs(); File(root, "fresh").mkdirs()
-            assertEquals(1, cleanupExpiredAudio(root, listOf(old, fresh), 100, RetentionPolicy(10)))
+            assertEquals(1, cleanupExpiredAudio(root, listOf(old, fresh), 30 * 86_400_000L, RetentionPolicy(10)))
             assertEquals(false, File(root, "old").exists())
             assertEquals(true, File(root, "fresh").exists())
         } finally { root.deleteRecursively() }
