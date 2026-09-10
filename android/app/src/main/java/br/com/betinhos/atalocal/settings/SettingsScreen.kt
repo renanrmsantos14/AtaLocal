@@ -2,6 +2,7 @@ package br.com.betinhos.atalocal.settings
 
 import android.content.Context
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -39,7 +40,9 @@ fun SettingsScreen(modelDao: ModelInstallDao, onBack: () -> Unit) {
         when (value) { is String -> putString(key, value); is Boolean -> putBoolean(key, value); is Int -> putInt(key, value) }
     }.apply()
     Scaffold(topBar = { TopAppBar(title = { Text("Configurações") }, navigationIcon = { TextButton(onClick = onBack) { Text("Voltar") } }) }) { padding ->
-        Column(Modifier.padding(padding).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            item {
+            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Text("Preferências locais", style = MaterialTheme.typography.headlineMedium)
             Text("Idioma da transcrição")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -99,6 +102,8 @@ fun SettingsScreen(modelDao: ModelInstallDao, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (checkingUpdate) "Verificando…" else "Verificar atualizações") }
             updateState?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            }
         }
     }
 }

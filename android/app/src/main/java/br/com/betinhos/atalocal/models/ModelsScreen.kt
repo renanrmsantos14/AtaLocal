@@ -30,6 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import br.com.betinhos.atalocal.data.ModelInstallDao
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import kotlinx.coroutines.launch
 import java.io.File
 import br.com.betinhos.atalocal.data.ModelInstallEntity
@@ -40,8 +45,6 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
     val context = LocalContext.current
     val installed by dao.observeAll().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
-    var downloading by remember { mutableStateOf<String?>(null) }
-    var progress by remember { mutableStateOf(0L to 0L) }
     var error by remember { mutableStateOf<String?>(null) }
     var removeTarget by remember { mutableStateOf<ModelSpec?>(null) }
 
@@ -54,6 +57,12 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
             }
             items(AndroidModelCatalog.all) { spec ->
                 val model = installed.find { it.id == spec.id }
+                val work by WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("model-${spec.id}").collectAsState(initial = emptyList())
+                val activeWork = work.firstOrNull { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED }
+                val workProgress = activeWork?.progress
+                val doneBytes = workProgress?.getLong(ModelDownloadWorker.KEY_DONE, model?.downloadedBytes ?: 0L) ?: (model?.downloadedBytes ?: 0L)
+                val totalBytes = workProgress?.getLong(ModelDownloadWorker.KEY_TOTAL, spec.sizeBytes) ?: spec.sizeBytes
+                val usable = model?.let(::isUsableModel) == true
                 Card(modifier = Modifier.fillMaxWidth().animateContentSize(), shape = RoundedCornerShape(20.dp)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(spec.id, style = MaterialTheme.typography.titleMedium)
@@ -64,37 +73,28 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
                             "INSTALLED" -> if (isUsableModel(requireNotNull(model))) "Instalado" else "Arquivo inválido — baixe novamente"
                             else -> "Não instalado"
                         })
-                        if (model?.status == "DOWNLOADING" && downloading == spec.id) {
-                            val total = progress.second.takeIf { it > 0 } ?: spec.sizeBytes
+                        if (activeWork != null || model?.status == "DOWNLOADING") {
                             LinearProgressIndicator(
-                                progress = { (progress.first.toFloat() / total).coerceIn(0f, 1f) },
+                                progress = { (doneBytes.toFloat() / totalBytes.coerceAtLeast(1L)).coerceIn(0f, 1f) },
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Text("${formatModelBytes(progress.first)} de ${formatModelBytes(total)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${formatModelBytes(doneBytes)} de ${formatModelBytes(totalBytes)} · continua em segundo plano", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         if (spec.id == AndroidModelCatalog.whisperTiny.id) {
                             Text("Recomendado para começar: menor download e mais rápido no celular.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         }
-                        Button(enabled = downloading == null, onClick = {
+                        Button(enabled = !usable && activeWork == null, onClick = {
                             error = null
-                            downloading = spec.id
                             scope.launch {
                                 val modelDirectory = context.filesDir.resolve("models")
                                 val target = modelDirectory.resolve(spec.id)
                                 val current = installed.find { it.id == spec.id }
-                                dao.upsert(current?.copy(status = "DOWNLOADING", downloadedBytes = modelDirectory.resolve("${spec.id}.download").length(), error = null)
-                                    ?: ModelInstallEntity(spec.id, spec.kind, spec.version, target.path, spec.sizeBytes, spec.sha256, status = "DOWNLOADING", downloadedBytes = modelDirectory.resolve("${spec.id}.download").length()))
-                                runCatching {
-                                    val file = ModelDownloader(modelDirectory).download(spec) { done, total -> progress = done to total }
-                                    dao.upsert(ModelInstallEntity(spec.id, spec.kind, spec.version, file.path, spec.sizeBytes, spec.sha256, status = "INSTALLED", downloadedBytes = spec.sizeBytes))
-                                }.onFailure {
-                                    error = it.message ?: "Falha ao baixar ${spec.id}"
-                                    dao.upsert(ModelInstallEntity(spec.id, spec.kind, spec.version, target.path, spec.sizeBytes, spec.sha256, status = "FAILED", downloadedBytes = modelDirectory.resolve("${spec.id}.download").length(), error = error))
-                                }
-                                downloading = null
+                                if (current?.let(::isUsableModel) == true) return@launch
+                                val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>().setInputData(workDataOf(ModelDownloadWorker.KEY_ID to spec.id)).build()
+                                WorkManager.getInstance(context).enqueueUniqueWork("model-${spec.id}", ExistingWorkPolicy.KEEP, request)
                             }
-                        }) { Text(if (downloading == spec.id) "Baixando ${progress.first}/${progress.second}" else "Baixar / atualizar") }
-                        if (model != null) TextButton(enabled = downloading == null, onClick = { removeTarget = spec }) { Text("Remover modelo") }
+                        }) { Text(if (usable) "Já instalado" else if (activeWork != null) "Baixando…" else "Baixar / atualizar") }
+                        if (model != null && activeWork == null) TextButton(onClick = { removeTarget = spec }) { Text("Remover modelo") }
                     }
                 }
             }

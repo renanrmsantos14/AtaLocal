@@ -11,7 +11,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 class ModelDownloader(private val directory: File) {
-    suspend fun download(spec: ModelSpec, onProgress: (Long, Long) -> Unit = { _, _ -> }): File = withContext(Dispatchers.IO) {
+    suspend fun download(spec: ModelSpec, onProgress: suspend (Long, Long) -> Unit = { _, _ -> }): File = withContext(Dispatchers.IO) {
         directory.mkdirs()
         val target = File(directory, spec.id)
         val partial = File(directory, "${spec.id}.download")
