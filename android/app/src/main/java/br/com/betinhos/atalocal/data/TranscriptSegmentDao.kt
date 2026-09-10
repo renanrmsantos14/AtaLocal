@@ -10,8 +10,8 @@ interface TranscriptSegmentDao {
     @Query("SELECT * FROM transcript_segments WHERE meetingId = :meetingId ORDER BY startMs")
     suspend fun listAll(meetingId: String): List<TranscriptSegmentEntity>
 
-    @Query("UPDATE transcript_segments SET text = :text WHERE id = :id")
-    suspend fun updateText(id: String, text: String)
+    @Query("UPDATE transcript_segments SET editedText = :text WHERE id = :id")
+    suspend fun updateEditedText(id: String, text: String)
 
     @Query("SELECT * FROM transcript_segments WHERE meetingId = :meetingId ORDER BY startMs")
     fun observeAll(meetingId: String): Flow<List<TranscriptSegmentEntity>>

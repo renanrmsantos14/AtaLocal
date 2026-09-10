@@ -78,6 +78,8 @@ Java_br_com_betinhos_atalocal_transcription_WhisperNative_transcribeJson(
             if (index > 0) result += ",";
             result += "{\"start_ms\":" + std::to_string(whisper_full_get_segment_t0(context, index) * 10);
             result += ",\"end_ms\":" + std::to_string(whisper_full_get_segment_t1(context, index) * 10);
+            const auto confidence = 1.0f - whisper_full_get_segment_no_speech_prob(context, index);
+            result += ",\"confidence\":" + std::to_string(confidence);
             result += ",\"text\":\"" + json_escape(whisper_full_get_segment_text(context, index)) + "\"}";
         }
     } else {

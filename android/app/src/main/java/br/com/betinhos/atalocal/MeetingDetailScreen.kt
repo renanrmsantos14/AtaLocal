@@ -34,7 +34,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
     val job by database.processingJobDao().observe(meetingId).collectAsState(initial = null)
     var edited by remember(artifact?.id, artifact?.content) { mutableStateOf(artifact?.content.orEmpty()) }
     var search by rememberSaveable { mutableStateOf("") }
-    val visibleTranscript = transcript.filter { search.isBlank() || it.text.contains(search, ignoreCase = true) }
+    val visibleTranscript = transcript.filter { search.isBlank() || it.text.contains(search, ignoreCase = true) || it.editedText?.contains(search, ignoreCase = true) == true }
 
     Scaffold(topBar = { TopAppBar(title = { Text(meeting?.title ?: "Reunião") }, navigationIcon = {
         TextButton(onClick = onBack) { Text("Voltar") }
@@ -78,9 +78,12 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
             item { OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), label = { Text("Buscar na transcrição") }, singleLine = true) }
             if (transcript.isEmpty()) item { Text("A transcrição aparecerá aqui após o processamento.") }
             items(visibleTranscript, key = { it.id }) { segment ->
-                var text by remember(segment.id, segment.text) { mutableStateOf(segment.text) }
-                OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text("${segment.startMs / 1000}s") },
-                    trailingIcon = { TextButton(onClick = { scope.launch { database.transcriptSegmentDao().updateText(segment.id, text) } }) { Text("Salvar") } })
+                var text by remember(segment.id, segment.text, segment.editedText) { mutableStateOf(segment.editedText ?: segment.text) }
+                OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = {
+                    Text("${segment.startMs / 1000}s${if ((segment.confidence ?: 1f) < 0.6f) " · baixa confiança" else ""}")
+                },
+                    supportingText = if ((segment.confidence ?: 1f) < 0.6f) ({ Text("Revise este trecho antes de usar na ata.", color = MaterialTheme.colorScheme.error) }) else null,
+                    trailingIcon = { TextButton(onClick = { scope.launch { database.transcriptSegmentDao().updateEditedText(segment.id, text) } }) { Text("Salvar") } })
             }
             item { Text("Ata", style = MaterialTheme.typography.titleLarge) }
             if (artifact == null) item { Text("A ata será gerada quando os modelos Whisper e Llama estiverem instalados.") }

@@ -11,6 +11,6 @@ object DatabaseProvider {
             context.applicationContext,
             AtaLocalDatabase::class.java,
             "atalocal.db"
-        ).build().also { instance = it }
+        ).addMigrations(MIGRATION_1_2).build().also { instance = it }
     }
 }
