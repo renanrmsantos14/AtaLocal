@@ -8,6 +8,10 @@ import android.content.Intent
 import java.io.File
 
 fun exportMinutesPdf(context: Context, minutes: br.com.betinhos.atalocal.summarization.Minutes, fileName: String = "ata.pdf"): File {
+    return exportTextPdf(context, minutesToMarkdown(minutes), fileName)
+}
+
+fun exportTextPdf(context: Context, text: String, fileName: String = "ata.pdf"): File {
     val file = File(context.cacheDir, fileName)
     val document = PdfDocument()
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12f; color = android.graphics.Color.BLACK }
@@ -28,7 +32,7 @@ fun exportMinutesPdf(context: Context, minutes: br.com.betinhos.atalocal.summari
         y += 18f
     }
 
-    minutesToMarkdown(minutes).lineSequence().forEach(::writeLine)
+    text.lineSequence().forEach(::writeLine)
     document.finishPage(page)
     file.outputStream().use(document::writeTo)
     document.close()

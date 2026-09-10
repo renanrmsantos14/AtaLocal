@@ -62,7 +62,9 @@ class MainActivity : ComponentActivity() {
         modelInstallDao = database.modelInstallDao()
         setContent {
             AtaLocalTheme {
-                HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording)
+                var selectedMeeting by remember { mutableStateOf<String?>(null) }
+                if (selectedMeeting == null) HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onOpenMeeting = { selectedMeeting = it })
+                else MeetingDetailScreen(database, selectedMeeting!!, onBack = { selectedMeeting = null })
             }
         }
     }
@@ -109,7 +111,7 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit) {
+private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onOpenMeeting: (String) -> Unit) {
     val meetings by dao.observeAll().collectAsState(initial = emptyList())
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var dialogOpen by remember { mutableStateOf(false) }
@@ -144,7 +146,7 @@ private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecord
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(meetings.firstOrNull()?.title ?: "Nenhuma reunião ainda", style = MaterialTheme.typography.titleMedium)
+                        TextButton(onClick = { meetings.firstOrNull()?.id?.let(onOpenMeeting) }) { Text(meetings.firstOrNull()?.title ?: "Nenhuma reunião ainda", style = MaterialTheme.typography.titleMedium) }
                         Text(if (meetings.isEmpty()) "Sua primeira gravação ficará armazenada somente neste aparelho."
                         else "${meetings.size} reunião(ões) armazenada(s) neste aparelho.")
                         if (meetings.isNotEmpty()) {

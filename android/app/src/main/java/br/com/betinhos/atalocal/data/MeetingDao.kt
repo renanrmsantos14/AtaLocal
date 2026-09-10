@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MeetingDao {
+    @Query("SELECT * FROM meetings WHERE id = :id LIMIT 1")
+    fun observe(id: String): Flow<MeetingEntity?>
     @Query("SELECT * FROM meetings ORDER BY createdAtEpochMs DESC")
     fun observeAll(): Flow<List<MeetingEntity>>
 
