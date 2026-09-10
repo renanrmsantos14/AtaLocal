@@ -59,6 +59,7 @@ import br.com.betinhos.atalocal.data.ModelInstallDao
 import br.com.betinhos.atalocal.pipeline.PipelineScheduler
 import br.com.betinhos.atalocal.models.ModelsScreen
 import br.com.betinhos.atalocal.models.selectWhisperModel
+import br.com.betinhos.atalocal.models.isUsableModel
 import br.com.betinhos.atalocal.domain.userLabel
 import br.com.betinhos.atalocal.diagnostics.DiagnosticsScreen
 import br.com.betinhos.atalocal.diagnostics.formatBytes
@@ -272,8 +273,8 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
     var note by remember { mutableStateOf("") }
     var showModels by remember { mutableStateOf(false) }
     val installedModels by modelDao.observeAll().collectAsState(initial = emptyList())
-    val hasWhisper = installedModels.any { it.kind == "whisper" && it.status == "INSTALLED" && java.io.File(it.filePath).isFile }
-    val hasLlm = installedModels.any { it.kind == "llm" && it.status == "INSTALLED" && java.io.File(it.filePath).isFile }
+    val hasWhisper = installedModels.any { it.kind == "whisper" && isUsableModel(it) }
+    val hasLlm = installedModels.any { it.kind == "llm" && isUsableModel(it) }
 
     if (showModels) {
         ModelsScreen(modelDao) { showModels = false }

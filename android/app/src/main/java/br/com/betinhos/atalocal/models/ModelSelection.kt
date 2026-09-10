@@ -3,12 +3,15 @@ package br.com.betinhos.atalocal.models
 import br.com.betinhos.atalocal.data.ModelInstallEntity
 import java.io.File
 
+fun isUsableModel(model: ModelInstallEntity): Boolean =
+    model.status == "INSTALLED" && File(model.filePath).let { it.isFile && it.length() == model.sizeBytes }
+
 fun selectWhisperModel(models: List<ModelInstallEntity>, preferredId: String? = null): String? = models.asSequence()
     .filter { it.kind == "whisper" }
-    .filter { it.status == "INSTALLED" }
+    .filter(::isUsableModel)
     .sortedWith(compareBy<ModelInstallEntity>({ it.id != preferredId }, { whisperRank(it.id) }))
     .map { it to File(it.filePath) }
-    .firstOrNull { (model, file) -> file.isFile && file.length() == model.sizeBytes }
+    .firstOrNull { (model, _) -> isUsableModel(model) }
     ?.second
     ?.absolutePath
 
@@ -22,10 +25,10 @@ private fun whisperRank(id: String): Int = when {
 
 fun selectModel(models: List<ModelInstallEntity>, kind: String, preferredId: String? = null): String? = models.asSequence()
     .filter { it.kind == kind }
-    .filter { it.status == "INSTALLED" }
+    .filter(::isUsableModel)
     .sortedWith(compareBy<ModelInstallEntity>({ it.id != preferredId }, { modelRank(it.id, kind) }))
     .map { it to File(it.filePath) }
-    .firstOrNull { (model, file) -> file.isFile && file.length() == model.sizeBytes }
+    .firstOrNull { (model, _) -> isUsableModel(model) }
     ?.second
     ?.absolutePath
 

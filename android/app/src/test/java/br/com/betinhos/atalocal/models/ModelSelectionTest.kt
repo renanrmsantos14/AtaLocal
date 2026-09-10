@@ -3,6 +3,8 @@ package br.com.betinhos.atalocal.models
 import br.com.betinhos.atalocal.data.ModelInstallEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -47,6 +49,15 @@ class ModelSelectionTest {
             assertNull(selectWhisperModel(listOf(
                 ModelInstallEntity("tiny", "whisper", "1", file.path, file.length() + 1, "hash")
             )))
+        } finally { file.delete() }
+    }
+
+    @Test fun `modelo utilizavel exige status instalado e tamanho correto`() {
+        val file = tempModel("whisper-valid")
+        try {
+            assertTrue(isUsableModel(ModelInstallEntity("tiny", "whisper", "1", file.path, 1, "hash")))
+            assertFalse(isUsableModel(ModelInstallEntity("tiny", "whisper", "1", file.path, 2, "hash")))
+            assertFalse(isUsableModel(ModelInstallEntity("tiny", "whisper", "1", file.path, 1, "hash", status = "FAILED")))
         } finally { file.delete() }
     }
 
