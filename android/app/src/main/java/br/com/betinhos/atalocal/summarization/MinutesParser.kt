@@ -6,7 +6,9 @@ import org.json.JSONObject
 data class MinuteTask(val description: String, val assignee: String?, val due: String?, val evidence: String)
 data class Minutes(val summary: String, val topics: List<String>, val decisions: List<String>, val tasks: List<MinuteTask>, val pending: List<String>, val alerts: List<String>, val participants: List<String> = emptyList())
 
-fun parseMinutesOrFallback(raw: String): Minutes = runCatching { parseMinutes(raw) }.getOrElse {
+fun parseMinutesOrFallback(raw: String, transcript: String = ""): Minutes = runCatching { parseMinutes(raw) }
+    .map { it.validateAgainst(transcript) }
+    .getOrElse {
     Minutes(
         summary = "A ata automática não pôde ser estruturada.",
         participants = emptyList(),
@@ -15,6 +17,22 @@ fun parseMinutesOrFallback(raw: String): Minutes = runCatching { parseMinutes(ra
         tasks = emptyList(),
         pending = emptyList(),
         alerts = listOf("JSON inválido retornado pelo modelo. Revise a transcrição e tente regenerar a ata.")
+    )
+}
+
+private fun Minutes.validateAgainst(transcript: String): Minutes {
+    if (transcript.isBlank()) return this
+    val normalizedTranscript = transcript.lowercase()
+    val validParticipants = participants.filter { normalizedTranscript.contains(it.lowercase()) }
+    val validTasks = tasks.filter { task ->
+        val evidenceWords = task.evidence.lowercase().split(Regex("\\W+")).filter { it.length >= 4 }
+        evidenceWords.any(normalizedTranscript::contains)
+    }
+    val discarded = (participants.size - validParticipants.size) + (tasks.size - validTasks.size)
+    return copy(
+        participants = validParticipants,
+        tasks = validTasks,
+        alerts = if (discarded == 0) alerts else alerts + "$discarded item(ns) sem evidência suficiente foram removidos da ata."
     )
 }
 

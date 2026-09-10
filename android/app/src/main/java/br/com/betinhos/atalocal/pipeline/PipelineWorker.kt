@@ -77,7 +77,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             meetingDao.updateStatusClearingError(meetingId, MeetingStatus.GENERATING)
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, 0f, "summary"))
             val transcript = dao.listAll(meetingId).joinToString("\n") { "[${it.startMs}ms] ${it.text}" }
-            val minutes = parseMinutesOrFallback(JniLlamaEngine().generate(File(llamaPath), buildFactualPrompt(transcript)))
+            val minutes = parseMinutesOrFallback(JniLlamaEngine().generate(File(llamaPath), buildFactualPrompt(transcript)), transcript)
             database.artifactDao().upsert(ArtifactEntity(
                 id = "$meetingId-minutes", meetingId = meetingId, type = "minutes",
                 content = br.com.betinhos.atalocal.export.minutesToMarkdown(minutes), modelVersion = models.first { it.filePath == llamaPath }.version

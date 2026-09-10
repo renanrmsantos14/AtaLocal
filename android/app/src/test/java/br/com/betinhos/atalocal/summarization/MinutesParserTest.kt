@@ -27,4 +27,16 @@ class MinutesParserTest {
         assertTrue(minutes.alerts.single().contains("JSON inválido"))
         assertTrue(minutes.topics.isEmpty())
     }
+
+    @Test fun removesParticipantsAndTasksWithoutTranscriptEvidence() {
+        val minutes = parseMinutesOrFallback(
+            """{"resumo":"x","participantes":["Pessoa inventada","Renan"],"assuntos":[],"decisoes":[],"tarefas":[{"descricao":"inventada","responsavel":null,"prazo":null,"evidencia":"frase que não existe"},{"descricao":"Enviar contrato","responsavel":null,"prazo":null,"evidencia":"enviar contrato"}],"pendencias":[],"alertas":[]}""",
+            "Renan disse: vamos enviar contrato amanhã."
+        )
+
+        assertEquals(listOf("Renan"), minutes.participants)
+        assertEquals(1, minutes.tasks.size)
+        assertEquals("Enviar contrato", minutes.tasks.single().description)
+        assertTrue(minutes.alerts.any { it.contains("evidência") })
+    }
 }

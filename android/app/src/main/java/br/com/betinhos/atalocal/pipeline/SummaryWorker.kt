@@ -27,7 +27,7 @@ class SummaryWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
             database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.GENERATING)
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, 0f, "summary"))
             val transcript = segments.joinToString("\n") { "[${it.startMs}ms] ${it.text}" }
-            val minutes = parseMinutesOrFallback(JniLlamaEngine().generate(File(llamaPath), buildFactualPrompt(transcript)))
+            val minutes = parseMinutesOrFallback(JniLlamaEngine().generate(File(llamaPath), buildFactualPrompt(transcript)), transcript)
             database.artifactDao().upsert(ArtifactEntity("$meetingId-minutes", meetingId, "minutes", br.com.betinhos.atalocal.export.minutesToMarkdown(minutes), models.first { it.filePath == llamaPath }.version))
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.READY, 1f, "complete"))
             database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.READY)

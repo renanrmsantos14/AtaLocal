@@ -198,6 +198,7 @@ jobs:
 
   android-native:
     name: Kotlin Android APK (arm64)
+    needs: release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
