@@ -11,6 +11,7 @@ import br.com.betinhos.atalocal.models.selectModel
 import br.com.betinhos.atalocal.summarization.JniLlamaEngine
 import br.com.betinhos.atalocal.summarization.generateMinutesInChunks
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CancellationException
 import java.io.File
 
 class SummaryWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
@@ -33,6 +34,8 @@ class SummaryWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.READY, 1f, "complete"))
             database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.READY)
             Result.success()
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Throwable) {
             fail(database, meetingId, error.message ?: "Falha ao regenerar a ata")
         }

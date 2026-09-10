@@ -12,6 +12,7 @@ import br.com.betinhos.atalocal.summarization.JniLlamaEngine
 import br.com.betinhos.atalocal.summarization.generateMinutesInChunks
 import br.com.betinhos.atalocal.data.ArtifactEntity
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CancellationException
 import java.io.File
 import android.util.Log
 
@@ -90,6 +91,9 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.READY, 1f, "complete"))
             meetingDao.updateStatusClearingError(meetingId, MeetingStatus.READY)
             Result.success()
+        } catch (error: CancellationException) {
+            Log.i(TAG, "Pipeline cancelado para $meetingId")
+            throw error
         } catch (error: Throwable) {
             Log.e(TAG, "Falha no pipeline de $meetingId na tentativa $runAttemptCount", error)
             if (runAttemptCount < 2) {
