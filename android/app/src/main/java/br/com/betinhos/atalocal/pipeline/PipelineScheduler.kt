@@ -12,6 +12,7 @@ import br.com.betinhos.atalocal.data.ProcessingJobEntity
 import br.com.betinhos.atalocal.domain.MeetingStatus
 import java.io.File
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 
 object PipelineScheduler {
     suspend fun enqueue(context: Context, meetingId: String, modelPath: String? = null, language: String = "pt") {
@@ -22,8 +23,9 @@ object PipelineScheduler {
             database.meetingDao().updateStatus(meetingId, MeetingStatus.FAILED, error = message)
             return
         }
-        database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.QUEUED, checkpoint = "queued"))
-        database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.QUEUED)
+        val previousJob = database.processingJobDao().observe(meetingId).first()
+        database.processingJobDao().upsert(queueJob(meetingId, previousJob))
+        database.meetingDao().updateStatusClearingError(meetingId, if (previousJob?.status == MeetingStatus.TRANSCRIBING) MeetingStatus.TRANSCRIBING else MeetingStatus.QUEUED)
         val request = OneTimeWorkRequestBuilder<PipelineWorker>()
             .setInputData(workDataOf(
                 PipelineWorker.KEY_MEETING_ID to meetingId,
@@ -40,6 +42,13 @@ object PipelineScheduler {
             request
         )
     }
+
+    internal fun queueJob(meetingId: String, previous: ProcessingJobEntity?): ProcessingJobEntity =
+        if (previous?.status == MeetingStatus.TRANSCRIBING && !previous.checkpoint.isNullOrBlank()) {
+            previous.copy(error = null, updatedAtEpochMs = System.currentTimeMillis())
+        } else {
+            ProcessingJobEntity(meetingId, MeetingStatus.QUEUED, checkpoint = "queued")
+        }
 
     suspend fun regenerateSummary(context: Context, meetingId: String) {
         val database = DatabaseProvider.get(context.applicationContext)
