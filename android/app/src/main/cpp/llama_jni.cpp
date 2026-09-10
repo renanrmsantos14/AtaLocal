@@ -8,6 +8,10 @@
 
 namespace {
 constexpr const char *TAG = "AtaLocalLlama";
+constexpr uint32_t CONTEXT_TOKENS = 4096;
+constexpr uint32_t BATCH_TOKENS = 4096;
+constexpr uint32_t UBATCH_TOKENS = 512;
+std::mutex generation_mutex;
 
 void throw_illegal_state(JNIEnv *env, const char *message) {
     env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), message);
@@ -37,9 +41,20 @@ std::string format_chat_prompt(const llama_model *model, const char *prompt) {
 extern "C" JNIEXPORT jstring JNICALL
 Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
     JNIEnv *env, jclass, jstring model_path, jstring prompt, jint max_tokens) {
+    std::lock_guard<std::mutex> generation_lock(generation_mutex);
     ensure_backend_initialized();
+    if (model_path == nullptr || prompt == nullptr) {
+        throw_illegal_state(env, "Caminho do modelo ou prompt da ata ausente.");
+        return nullptr;
+    }
     const char *model = env->GetStringUTFChars(model_path, nullptr);
     const char *prompt_utf = env->GetStringUTFChars(prompt, nullptr);
+    if (model == nullptr || prompt_utf == nullptr) {
+        if (model != nullptr) env->ReleaseStringUTFChars(model_path, model);
+        if (prompt_utf != nullptr) env->ReleaseStringUTFChars(prompt, prompt_utf);
+        throw_illegal_state(env, "Não foi possível preparar o modelo da ata na memória.");
+        return nullptr;
+    }
     llama_model_params model_params = llama_model_default_params();
     llama_model *loaded = llama_model_load_from_file(model, model_params);
     if (!loaded) {
@@ -50,7 +65,9 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
         return nullptr;
     }
     llama_context_params context_params = llama_context_default_params();
-    context_params.n_ctx = 4096;
+    context_params.n_ctx = CONTEXT_TOKENS;
+    context_params.n_batch = BATCH_TOKENS;
+    context_params.n_ubatch = UBATCH_TOKENS;
     llama_context *context = llama_init_from_model(loaded, context_params);
     if (!context) {
         throw_illegal_state(env, "Não foi possível iniciar o contexto do modelo de ata.");
@@ -60,7 +77,24 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
         return nullptr;
     }
     llama_sampler *sampler = llama_sampler_init_greedy();
+    if (!sampler) {
+        llama_free(context);
+        llama_model_free(loaded);
+        env->ReleaseStringUTFChars(model_path, model);
+        env->ReleaseStringUTFChars(prompt, prompt_utf);
+        throw_illegal_state(env, "Não foi possível iniciar o gerador da ata.");
+        return nullptr;
+    }
     const llama_vocab *vocab = llama_model_get_vocab(loaded);
+    if (!vocab) {
+        llama_sampler_free(sampler);
+        llama_free(context);
+        llama_model_free(loaded);
+        env->ReleaseStringUTFChars(model_path, model);
+        env->ReleaseStringUTFChars(prompt, prompt_utf);
+        throw_illegal_state(env, "O modelo da ata não possui vocabulário válido.");
+        return nullptr;
+    }
     const std::string formatted_prompt = format_chat_prompt(loaded, prompt_utf);
     std::string output;
     const int32_t required_tokens = llama_tokenize(vocab, formatted_prompt.c_str(), -1, nullptr, 0, true, true);
@@ -85,6 +119,15 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
         return nullptr;
     }
     tokens.resize(static_cast<size_t>(tokenized));
+    if (tokens.size() >= CONTEXT_TOKENS) {
+        llama_sampler_free(sampler);
+        llama_free(context);
+        llama_model_free(loaded);
+        env->ReleaseStringUTFChars(model_path, model);
+        env->ReleaseStringUTFChars(prompt, prompt_utf);
+        throw_illegal_state(env, "A transcrição é longa demais para gerar a ata neste modelo.");
+        return nullptr;
+    }
     llama_batch batch = llama_batch_get_one(tokens.data(), static_cast<int32_t>(tokens.size()));
     if (llama_decode(context, batch) == 0) {
         for (int i = 0; i < max_tokens; ++i) {
