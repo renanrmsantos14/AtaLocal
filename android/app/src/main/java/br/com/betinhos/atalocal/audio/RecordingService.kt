@@ -11,6 +11,7 @@ import android.media.MediaRecorder
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import java.io.File
+import android.os.SystemClock
 import kotlin.concurrent.thread
 
 class RecordingService : Service() {
@@ -70,6 +71,7 @@ class RecordingService : Service() {
         var sequence = 0
         var samplesInSegment = 0
         var writer = WavSegmentWriter(store.temporary(sequence)).also { it.open() }
+        var lastLevelReport = 0L
         try {
             while (running) {
                 if (paused) {
@@ -78,6 +80,13 @@ class RecordingService : Service() {
                 }
                 val count = recorder?.read(buffer, 0, buffer.size) ?: 0
                 if (count <= 0) continue
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastLevelReport >= 150) {
+                    var peak = 0
+                    for (index in 0 until count) peak = maxOf(peak, kotlin.math.abs(buffer[index].toInt()))
+                    sendBroadcast(Intent(ACTION_LEVEL).setPackage(packageName).putExtra(EXTRA_LEVEL, peak / 32767f))
+                    lastLevelReport = now
+                }
                 var offset = 0
                 while (offset < count && running) {
                     val available = minOf(count - offset, SAMPLES_PER_SEGMENT - samplesInSegment)
@@ -109,6 +118,8 @@ class RecordingService : Service() {
     companion object {
         const val ACTION_STOP = "br.com.betinhos.atalocal.audio.STOP"
         const val ACTION_TOGGLE_PAUSE = "br.com.betinhos.atalocal.audio.TOGGLE_PAUSE"
+        const val ACTION_LEVEL = "br.com.betinhos.atalocal.audio.LEVEL"
+        const val EXTRA_LEVEL = "microphone_level"
         const val EXTRA_DIRECTORY = "segment_directory"
         const val SAMPLE_RATE = 16_000
         const val CHANNEL = AudioFormat.CHANNEL_IN_MONO

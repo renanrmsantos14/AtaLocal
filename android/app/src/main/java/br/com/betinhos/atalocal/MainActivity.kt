@@ -6,6 +6,9 @@ import android.os.StatFs
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -59,10 +62,17 @@ class MainActivity : ComponentActivity() {
     private var recordingStartedAt: Long = 0L
     private lateinit var meetingDao: MeetingDao
     private lateinit var modelInstallDao: ModelInstallDao
+    private var recordingUiMeetingId by mutableStateOf<String?>(null)
+    private var recordingUiStartedAt by mutableStateOf(0L)
+    private var microphoneLevel by mutableStateOf(0f)
+    private val levelReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) { microphoneLevel = intent.getFloatExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_LEVEL, 0f) }
+    }
     private val microphonePermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) startRecordingService()
+        else recordingUiMeetingId = null
     }
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -73,6 +83,7 @@ class MainActivity : ComponentActivity() {
         val database = Room.databaseBuilder(applicationContext, AtaLocalDatabase::class.java, "atalocal.db").build()
         meetingDao = database.meetingDao()
         modelInstallDao = database.modelInstallDao()
+        ContextCompat.registerReceiver(this, levelReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_LEVEL), ContextCompat.RECEIVER_NOT_EXPORTED)
         lifecycleScope.launch(Dispatchers.IO) {
             val days = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getInt("retention_days", 30)
             cleanupExpiredAudio(filesDir.resolve("meetings"), meetingDao.listAll(), System.currentTimeMillis(), RetentionPolicy(days))
@@ -85,7 +96,8 @@ class MainActivity : ComponentActivity() {
                 var selectedMeeting by rememberSaveable { mutableStateOf<String?>(null) }
                 var showDiagnostics by rememberSaveable { mutableStateOf(false) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
-                if (selectedMeeting != null) MeetingDetailScreen(database, selectedMeeting!!, onBack = { selectedMeeting = null })
+                if (recordingUiMeetingId != null) RecordingScreen(recordingUiStartedAt, microphoneLevel, ::togglePause, ::stopRecording)
+                else if (selectedMeeting != null) MeetingDetailScreen(database, selectedMeeting!!, onBack = { selectedMeeting = null })
                 else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), meetingDao, onBack = { showDiagnostics = false })
                 else if (showSettings) SettingsScreen(onBack = { showSettings = false })
                 else HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onTogglePause = ::togglePause, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true }, onOpenSettings = { showSettings = true })
@@ -93,9 +105,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        unregisterReceiver(levelReceiver)
+        super.onDestroy()
+    }
+
     private fun requestRecording(meetingId: String) {
         activeMeetingId = meetingId
         recordingStartedAt = System.currentTimeMillis()
+        recordingUiMeetingId = meetingId
+        recordingUiStartedAt = recordingStartedAt
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startRecordingService()
         } else {
@@ -128,6 +147,8 @@ class MainActivity : ComponentActivity() {
             }
         }
         activeMeetingId = null
+        recordingUiMeetingId = null
+        microphoneLevel = 0f
     }
 
     private fun togglePause() {
