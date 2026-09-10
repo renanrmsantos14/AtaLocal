@@ -9,4 +9,12 @@ class PipelineCheckpointTest {
         assertEquals(0, completedSegmentCount("processing-3/5"))
         assertEquals(0, completedSegmentCount(null))
     }
+
+    @Test fun convertsActiveSegmentToLastCompletedSegmentForRetry() {
+        assertEquals("segment-2/6", retryCheckpoint("processing-3/6"))
+    }
+
+    @Test fun keepsCompletedCheckpointUnchanged() {
+        assertEquals("segment-3/6", retryCheckpoint("segment-3/6"))
+    }
 }

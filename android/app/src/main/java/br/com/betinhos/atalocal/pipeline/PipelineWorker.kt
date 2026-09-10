@@ -97,7 +97,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         } catch (error: Throwable) {
             Log.e(TAG, "Falha no pipeline de $meetingId na tentativa $runAttemptCount", error)
             if (runAttemptCount < 2) {
-                val checkpoint = database.processingJobDao().observe(meetingId).first()?.checkpoint
+                val checkpoint = retryCheckpoint(database.processingJobDao().observe(meetingId).first()?.checkpoint)
                 database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.TRANSCRIBING, checkpoint = checkpoint, error = "Tentativa ${runAttemptCount + 1} falhou; retomando do último segmento salvo"))
                 meetingDao.updateStatus(meetingId, MeetingStatus.TRANSCRIBING)
                 return Result.retry()
