@@ -63,7 +63,9 @@ class RecordingService : Service() {
 
     override fun onDestroy() {
         running = false
-        recorder?.stop()
+        recorder?.let { activeRecorder ->
+            if (shouldStopRecorder(activeRecorder.recordingState)) runCatching { activeRecorder.stop() }
+        }
         captureThread?.join(1_000)
         recorder?.release()
         recorder = null
@@ -204,3 +206,6 @@ class RecordingService : Service() {
 
 internal fun audioReadFailureMessage(code: Int): String =
     "A captura do microfone foi interrompida (código $code). Verifique a permissão e tente novamente."
+
+internal fun shouldStopRecorder(recordingState: Int): Boolean =
+    recordingState == AudioRecord.RECORDSTATE_RECORDING

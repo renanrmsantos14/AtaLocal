@@ -2,6 +2,7 @@
 #include <android/log.h>
 #include <llama.h>
 #include <algorithm>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -10,6 +11,11 @@ constexpr const char *TAG = "AtaLocalLlama";
 
 void throw_illegal_state(JNIEnv *env, const char *message) {
     env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), message);
+}
+
+void ensure_backend_initialized() {
+    static std::once_flag initialized;
+    std::call_once(initialized, [] { llama_backend_init(); });
 }
 
 std::string format_chat_prompt(const llama_model *model, const char *prompt) {
@@ -31,6 +37,7 @@ std::string format_chat_prompt(const llama_model *model, const char *prompt) {
 extern "C" JNIEXPORT jstring JNICALL
 Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
     JNIEnv *env, jclass, jstring model_path, jstring prompt, jint max_tokens) {
+    ensure_backend_initialized();
     const char *model = env->GetStringUTFChars(model_path, nullptr);
     const char *prompt_utf = env->GetStringUTFChars(prompt, nullptr);
     llama_model_params model_params = llama_model_default_params();
