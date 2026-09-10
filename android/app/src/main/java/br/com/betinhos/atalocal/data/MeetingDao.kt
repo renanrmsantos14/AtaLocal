@@ -17,8 +17,11 @@ interface MeetingDao {
     @Upsert
     suspend fun upsert(meeting: MeetingEntity)
 
-    @Query("UPDATE meetings SET status = :status, durationSeconds = :durationSeconds, error = :error WHERE id = :id")
+    @Query("UPDATE meetings SET status = :status, durationSeconds = CASE WHEN :durationSeconds > 0 THEN :durationSeconds ELSE durationSeconds END, error = CASE WHEN :error IS NOT NULL THEN :error ELSE error END WHERE id = :id")
     suspend fun updateStatus(id: String, status: br.com.betinhos.atalocal.domain.MeetingStatus, durationSeconds: Long = 0, error: String? = null)
+
+    @Query("UPDATE meetings SET status = :status, error = NULL WHERE id = :id")
+    suspend fun updateStatusClearingError(id: String, status: br.com.betinhos.atalocal.domain.MeetingStatus)
 
     @Query("DELETE FROM meetings WHERE id = :id")
     suspend fun delete(id: String)

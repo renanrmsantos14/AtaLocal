@@ -1,9 +1,15 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
+
+val signingProperties = Properties()
+val signingFile = rootProject.file("keystore.properties")
+if (signingFile.isFile) signingFile.inputStream().use { signingProperties.load(it) }
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
@@ -24,7 +30,19 @@ android {
     }
 
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            signingConfig = if (signingProperties.isNotEmpty()) {
+                signingConfigs.create("release") {
+                    storeFile = file(signingProperties.getProperty("storeFile"))
+                    storePassword = signingProperties.getProperty("storePassword")
+                    keyAlias = signingProperties.getProperty("keyAlias")
+                    keyPassword = signingProperties.getProperty("keyPassword")
+                }
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
     }
 
     compileOptions {

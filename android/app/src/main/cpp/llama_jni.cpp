@@ -1,7 +1,16 @@
 #include <jni.h>
+#include <android/log.h>
 #include <llama.h>
 #include <string>
 #include <vector>
+
+namespace {
+constexpr const char *TAG = "AtaLocalLlama";
+
+void throw_illegal_state(JNIEnv *env, const char *message) {
+    env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), message);
+}
+}
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
@@ -11,24 +20,47 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
     llama_model_params model_params = llama_model_default_params();
     llama_model *loaded = llama_model_load_from_file(model, model_params);
     if (!loaded) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "Falha ao carregar modelo Llama: %s", model);
+        throw_illegal_state(env, "Não foi possível carregar o modelo de ata. Verifique o arquivo instalado.");
         env->ReleaseStringUTFChars(model_path, model);
         env->ReleaseStringUTFChars(prompt, prompt_utf);
-        return env->NewStringUTF("{}");
+        return nullptr;
     }
     llama_context_params context_params = llama_context_default_params();
     context_params.n_ctx = 4096;
     llama_context *context = llama_init_from_model(loaded, context_params);
     if (!context) {
+        throw_illegal_state(env, "Não foi possível iniciar o contexto do modelo de ata.");
         llama_model_free(loaded);
         env->ReleaseStringUTFChars(model_path, model);
         env->ReleaseStringUTFChars(prompt, prompt_utf);
-        return env->NewStringUTF("{}");
+        return nullptr;
     }
     llama_sampler *sampler = llama_sampler_init_greedy();
     const llama_vocab *vocab = llama_model_get_vocab(loaded);
     std::string output;
-    std::vector<llama_token> tokens(static_cast<size_t>(llama_tokenize(vocab, prompt_utf, -1, nullptr, 0, true, true)));
-    llama_tokenize(vocab, prompt_utf, -1, tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
+    const int32_t required_tokens = llama_tokenize(vocab, prompt_utf, -1, nullptr, 0, true, true);
+    if (required_tokens >= 0) {
+        llama_sampler_free(sampler);
+        llama_free(context);
+        llama_model_free(loaded);
+        env->ReleaseStringUTFChars(model_path, model);
+        env->ReleaseStringUTFChars(prompt, prompt_utf);
+        throw_illegal_state(env, "Não foi possível tokenizar o prompt da ata.");
+        return nullptr;
+    }
+    std::vector<llama_token> tokens(static_cast<size_t>(-required_tokens));
+    const int32_t tokenized = llama_tokenize(vocab, prompt_utf, -1, tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
+    if (tokenized < 0) {
+        llama_sampler_free(sampler);
+        llama_free(context);
+        llama_model_free(loaded);
+        env->ReleaseStringUTFChars(model_path, model);
+        env->ReleaseStringUTFChars(prompt, prompt_utf);
+        throw_illegal_state(env, "Não foi possível tokenizar o prompt da ata.");
+        return nullptr;
+    }
+    tokens.resize(static_cast<size_t>(tokenized));
     llama_batch batch = llama_batch_get_one(tokens.data(), static_cast<int32_t>(tokens.size()));
     if (llama_decode(context, batch) == 0) {
         for (int i = 0; i < max_tokens; ++i) {

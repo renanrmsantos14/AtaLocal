@@ -62,7 +62,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                                 scope.launch {
                                     val language = context.getSharedPreferences("atalocal.settings", android.content.Context.MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
                                     database.processingJobDao().upsert(br.com.betinhos.atalocal.data.ProcessingJobEntity(meetingId, MeetingStatus.QUEUED, checkpoint = "queued"))
-                                    database.meetingDao().updateStatus(meetingId, MeetingStatus.QUEUED)
+                                    database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.QUEUED)
                                     PipelineScheduler.enqueue(context, meetingId, selectWhisperModel(database.modelInstallDao().observeAll().first()), language)
                                 }
                             }) { Text("Tentar novamente") }

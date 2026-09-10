@@ -2,6 +2,7 @@ package br.com.betinhos.atalocal.summarization
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MinutesParserTest {
@@ -16,5 +17,13 @@ class MinutesParserTest {
     @Test(expected = IllegalArgumentException::class)
     fun rejectsTaskWithoutEvidence() {
         parseMinutes("""{"resumo":"x","assuntos":[],"decisoes":[],"tarefas":[{"descricao":"y","responsavel":null,"prazo":null,"evidencia":""}],"pendencias":[],"alertas":[]}""")
+    }
+
+    @Test fun invalidModelOutputGetsSafeFactualFallback() {
+        val minutes = parseMinutesOrFallback("not-json")
+
+        assertEquals("A ata automática não pôde ser estruturada.", minutes.summary)
+        assertTrue(minutes.alerts.single().contains("JSON inválido"))
+        assertTrue(minutes.topics.isEmpty())
     }
 }

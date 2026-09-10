@@ -6,6 +6,17 @@ import org.json.JSONObject
 data class MinuteTask(val description: String, val assignee: String?, val due: String?, val evidence: String)
 data class Minutes(val summary: String, val topics: List<String>, val decisions: List<String>, val tasks: List<MinuteTask>, val pending: List<String>, val alerts: List<String>)
 
+fun parseMinutesOrFallback(raw: String): Minutes = runCatching { parseMinutes(raw) }.getOrElse {
+    Minutes(
+        summary = "A ata automática não pôde ser estruturada.",
+        topics = emptyList(),
+        decisions = emptyList(),
+        tasks = emptyList(),
+        pending = emptyList(),
+        alerts = listOf("JSON inválido retornado pelo modelo. Revise a transcrição e tente regenerar a ata.")
+    )
+}
+
 fun parseMinutes(raw: String): Minutes {
     val json = JSONObject(raw)
     fun strings(key: String) = json.optJSONArray(key).toStrings()

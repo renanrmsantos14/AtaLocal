@@ -10,6 +10,8 @@ class JniLlamaEngine : LlamaEngine {
     override fun generate(model: File, prompt: String, maxTokens: Int): String {
         require(model.isFile) { "Modelo LLM ausente: ${model.name}" }
         return LlamaNative.generate(model.absolutePath, prompt, maxTokens)
+            .orEmpty()
+            .also { require(it.isNotBlank()) { "O Llama não retornou conteúdo para a ata" } }
     }
 }
 

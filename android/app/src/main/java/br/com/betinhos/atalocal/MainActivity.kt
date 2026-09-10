@@ -50,7 +50,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.height
-import androidx.room.Room
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import br.com.betinhos.atalocal.data.AtaLocalDatabase
@@ -68,6 +67,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import br.com.betinhos.atalocal.settings.RetentionPolicy
 import br.com.betinhos.atalocal.settings.cleanupExpiredAudio
+import br.com.betinhos.atalocal.data.DatabaseProvider
+import br.com.betinhos.atalocal.pipeline.PipelineRecovery
 
 class MainActivity : ComponentActivity() {
     private var activeMeetingId: String? = null
@@ -93,13 +94,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val database = Room.databaseBuilder(applicationContext, AtaLocalDatabase::class.java, "atalocal.db").build()
+        val database = DatabaseProvider.get(applicationContext)
         meetingDao = database.meetingDao()
         modelInstallDao = database.modelInstallDao()
         ContextCompat.registerReceiver(this, levelReceiver, IntentFilter(br.com.betinhos.atalocal.audio.RecordingService.ACTION_LEVEL), ContextCompat.RECEIVER_NOT_EXPORTED)
         lifecycleScope.launch(Dispatchers.IO) {
             val days = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getInt("retention_days", 30)
             cleanupExpiredAudio(filesDir.resolve("meetings"), meetingDao.listAll(), System.currentTimeMillis(), RetentionPolicy(days))
+            PipelineRecovery.recover(this@MainActivity, database)
         }
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -137,7 +139,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startRecordingService() {
-        activeMeetingId?.let { id -> lifecycleScope.launch { meetingDao.updateStatus(id, br.com.betinhos.atalocal.domain.MeetingStatus.RECORDING) } }
+        activeMeetingId?.let { id -> lifecycleScope.launch { meetingDao.updateStatusClearingError(id, br.com.betinhos.atalocal.domain.MeetingStatus.RECORDING) } }
         val intent = Intent(this, br.com.betinhos.atalocal.audio.RecordingService::class.java)
             .putExtra(
                 br.com.betinhos.atalocal.audio.RecordingService.EXTRA_DIRECTORY,
