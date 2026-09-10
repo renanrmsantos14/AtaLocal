@@ -73,6 +73,7 @@ import br.com.betinhos.atalocal.data.DatabaseProvider
 import br.com.betinhos.atalocal.pipeline.PipelineRecovery
 import br.com.betinhos.atalocal.audio.hasRecordingStorage
 import br.com.betinhos.atalocal.audio.RecordingSessionStore
+import br.com.betinhos.atalocal.audio.recordingElapsedSeconds
 
 class MainActivity : ComponentActivity() {
     private var activeMeetingId: String? = null
@@ -81,6 +82,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var modelInstallDao: ModelInstallDao
     private var recordingUiMeetingId by mutableStateOf<String?>(null)
     private var recordingUiStartedAt by mutableStateOf(0L)
+    private var recordingPaused by mutableStateOf(false)
+    private var pauseStartedAt = 0L
+    private var pausedDurationMs = 0L
     private var microphoneLevel by mutableStateOf(0f)
     private var openMeetingAfterStop by mutableStateOf<String?>(null)
     private val levelReceiver = object : BroadcastReceiver() {
@@ -150,7 +154,7 @@ class MainActivity : ComponentActivity() {
                 var showDiagnostics by rememberSaveable { mutableStateOf(false) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
                 val detailMeetingId = selectedMeeting ?: openMeetingAfterStop
-                if (recordingUiMeetingId != null) RecordingScreen(recordingUiStartedAt, microphoneLevel, ::togglePause, ::stopRecording)
+                if (recordingUiMeetingId != null) RecordingScreen(recordingUiStartedAt, recordingPaused, pauseStartedAt, pausedDurationMs, microphoneLevel, ::togglePause, ::stopRecording)
                 else if (detailMeetingId != null) MeetingDetailScreen(database, detailMeetingId, onBack = { selectedMeeting = null; openMeetingAfterStop = null })
                 else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), meetingDao, onBack = { showDiagnostics = false })
                 else if (showSettings) SettingsScreen(database.modelInstallDao(), onBack = { showSettings = false })
@@ -183,6 +187,9 @@ class MainActivity : ComponentActivity() {
         recordingStartedAt = System.currentTimeMillis()
         recordingUiMeetingId = meetingId
         recordingUiStartedAt = recordingStartedAt
+        recordingPaused = false
+        pauseStartedAt = 0L
+        pausedDurationMs = 0L
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startRecordingService()
         } else {
@@ -207,17 +214,29 @@ class MainActivity : ComponentActivity() {
             action = br.com.betinhos.atalocal.audio.RecordingService.ACTION_STOP
             putExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_MEETING_ID, id)
         })
-        val duration = ((System.currentTimeMillis() - recordingStartedAt) / 1000).coerceAtLeast(0)
+        val duration = recordingElapsedSeconds(recordingStartedAt, System.currentTimeMillis(), recordingPaused, pauseStartedAt, pausedDurationMs)
         lifecycleScope.launch {
             meetingDao.updateStatus(id, br.com.betinhos.atalocal.domain.MeetingStatus.RECORDED, duration)
         }
         activeMeetingId = null
         recordingUiMeetingId = null
+        recordingPaused = false
+        pauseStartedAt = 0L
+        pausedDurationMs = 0L
         microphoneLevel = 0f
         openMeetingAfterStop = id
     }
 
     private fun togglePause() {
+        val now = System.currentTimeMillis()
+        if (recordingPaused) {
+            pausedDurationMs += (now - pauseStartedAt).coerceAtLeast(0L)
+            pauseStartedAt = 0L
+            recordingPaused = false
+        } else {
+            pauseStartedAt = now
+            recordingPaused = true
+        }
         startService(Intent(this, br.com.betinhos.atalocal.audio.RecordingService::class.java).apply {
             action = br.com.betinhos.atalocal.audio.RecordingService.ACTION_TOGGLE_PAUSE
         })
