@@ -43,6 +43,7 @@ import br.com.betinhos.atalocal.data.ModelInstallDao
 import br.com.betinhos.atalocal.pipeline.PipelineScheduler
 import br.com.betinhos.atalocal.models.ModelsScreen
 import br.com.betinhos.atalocal.models.selectWhisperModel
+import br.com.betinhos.atalocal.diagnostics.DiagnosticsScreen
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 
@@ -71,8 +72,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             AtaLocalTheme {
                 var selectedMeeting by remember { mutableStateOf<String?>(null) }
-                if (selectedMeeting == null) HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onOpenMeeting = { selectedMeeting = it })
-                else MeetingDetailScreen(database, selectedMeeting!!, onBack = { selectedMeeting = null })
+                var showDiagnostics by remember { mutableStateOf(false) }
+                if (selectedMeeting != null) MeetingDetailScreen(database, selectedMeeting!!, onBack = { selectedMeeting = null })
+                else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), onBack = { showDiagnostics = false })
+                else HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true })
             }
         }
     }
@@ -119,7 +122,7 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onOpenMeeting: (String) -> Unit) {
+private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit, onOpenMeeting: (String) -> Unit, onOpenDiagnostics: () -> Unit) {
     val meetings by dao.observeAll().collectAsState(initial = emptyList())
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var dialogOpen by remember { mutableStateOf(false) }
@@ -150,6 +153,7 @@ private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecord
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Nova reunião") }
                 TextButton(onClick = { showModels = true }) { Text("Gerenciar modelos") }
+                TextButton(onClick = onOpenDiagnostics) { Text("Diagnóstico") }
             }
             items(meetings, key = { it.id }) { meeting ->
                 Card(modifier = Modifier.fillMaxWidth()) {
