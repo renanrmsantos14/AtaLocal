@@ -5,6 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -30,23 +32,36 @@ fun DiagnosticsScreen(modelDao: ModelInstallDao, meetingDao: MeetingDao, onBack:
         appendLine("Modelos instalados: ${snapshot.installedModels.joinToString { it.id }}")
     }
     Scaffold(topBar = { TopAppBar(title = { Text("Diagnóstico") }, navigationIcon = { TextButton(onClick = onBack) { Text("Voltar") } }) }) { padding ->
-        Column(Modifier.padding(padding).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item {
             Text("Estado local", style = MaterialTheme.typography.headlineMedium)
+            Text("Uma leitura rápida da saúde do app e dos modelos.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Versão: ${snapshot.appVersion}")
             Text("Android: ${snapshot.androidVersion}")
-            Text("Armazenamento disponível: ${formatBytes(snapshot.availableStorageBytes)}")
-            Text("Espaço usado pelos modelos: ${formatBytes(installedBytes)}")
-            Text("Modelos instalados: ${models.count { it.status == "INSTALLED" && File(it.filePath).isFile }} de ${models.size}")
+            Text("${formatBytes(snapshot.availableStorageBytes)} disponíveis · ${formatBytes(installedBytes)} usados pelos modelos", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${models.count { it.status == "INSTALLED" && File(it.filePath).isFile }} de ${models.size} modelos prontos")
+                }
+            }
             snapshot.lastError?.let { Text("Último erro: $it", color = MaterialTheme.colorScheme.error) }
-            models.forEach { model ->
+            Text("Modelos", style = MaterialTheme.typography.titleLarge)
+            }
+            items(models, key = { it.id }) { model ->
                 val state = when (model.status) {
                     "INSTALLED" -> "instalado"
                     "DOWNLOADING" -> "baixando ${formatBytes(model.downloadedBytes)} de ${formatBytes(model.sizeBytes)}"
                     "FAILED" -> "falhou: ${model.error ?: "erro desconhecido"}"
                     else -> model.status.lowercase()
                 }
-                Text("• ${model.id} (${formatBytes(model.sizeBytes)}) — $state")
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(model.id, style = MaterialTheme.typography.titleSmall)
+                        Text("${formatBytes(model.sizeBytes)} · $state", color = if (model.status == "FAILED") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
+            item {
             Button(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("Diagnóstico AtaLocal", report))
@@ -57,6 +72,7 @@ fun DiagnosticsScreen(modelDao: ModelInstallDao, meetingDao: MeetingDao, onBack:
                     putExtra(Intent.EXTRA_TEXT, report)
                 }, "Compartilhar diagnóstico"))
             }) { Text("Compartilhar diagnóstico") }
+            }
         }
     }
 }
