@@ -13,6 +13,9 @@ import androidx.core.app.NotificationCompat
 import java.io.File
 import android.os.SystemClock
 import kotlin.concurrent.thread
+import kotlinx.coroutines.runBlocking
+import br.com.betinhos.atalocal.data.AudioSegmentEntity
+import br.com.betinhos.atalocal.data.DatabaseProvider
 
 class RecordingService : Service() {
     private var recorder: AudioRecord? = null
@@ -69,7 +72,7 @@ class RecordingService : Service() {
     private fun capture(bufferSize: Int) {
         val store = requireNotNull(segmentStore)
         val buffer = ShortArray(bufferSize)
-        var sequence = 0
+        var sequence = (store.recover().mapNotNull { Regex("segment-(\\d+)\\.wav").matchEntire(it.name)?.groupValues?.get(1)?.toIntOrNull() }.maxOrNull()?.plus(1) ?: 0)
         var samplesInSegment = 0
         var writer = WavSegmentWriter(store.temporary(sequence)).also { it.open() }
         var lastLevelReport = 0L
@@ -96,7 +99,8 @@ class RecordingService : Service() {
                     samplesInSegment += available
                     if (samplesInSegment == SAMPLES_PER_SEGMENT) {
                         writer.close()
-                        store.commit(sequence)
+                        val completed = store.commit(sequence)
+                        persistSegment(completed, sequence, SAMPLES_PER_SEGMENT)
                         sequence += 1
                         samplesInSegment = 0
                         writer = WavSegmentWriter(store.temporary(sequence)).also { it.open() }
@@ -105,11 +109,23 @@ class RecordingService : Service() {
             }
         } finally {
             writer.close()
-            if (samplesInSegment > 0) store.commit(sequence)
+            if (samplesInSegment > 0) {
+                val completed = store.commit(sequence)
+                persistSegment(completed, sequence, samplesInSegment)
+            }
             sendBroadcast(
                 Intent(ACTION_STOPPED)
                     .setPackage(packageName)
                     .putExtra(EXTRA_MEETING_ID, currentMeetingId)
+            )
+        }
+    }
+
+    private fun persistSegment(file: File, sequence: Int, sampleCount: Int) {
+        val meetingId = currentMeetingId ?: return
+        runBlocking {
+            DatabaseProvider.get(applicationContext).audioSegmentDao().upsert(
+                AudioSegmentEntity(meetingId, sequence, file.absolutePath, sampleCount * 1_000L / SAMPLE_RATE)
             )
         }
     }

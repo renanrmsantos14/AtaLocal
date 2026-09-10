@@ -117,6 +117,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                     WorkManager.getInstance(context).cancelUniqueWork("pipeline-$meetingId")
                     WorkManager.getInstance(context).cancelUniqueWork("summary-$meetingId")
                     database.processingJobDao().deleteForMeeting(meetingId)
+                    database.audioSegmentDao().deleteForMeeting(meetingId)
                     database.transcriptSegmentDao().deleteForMeeting(meetingId)
                     database.artifactDao().deleteForMeeting(meetingId)
                     database.meetingDao().delete(meetingId)

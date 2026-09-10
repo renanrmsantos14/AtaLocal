@@ -2,6 +2,7 @@ package br.com.betinhos.atalocal.pipeline
 
 import android.content.Context
 import br.com.betinhos.atalocal.data.AtaLocalDatabase
+import br.com.betinhos.atalocal.data.AudioSegmentEntity
 import br.com.betinhos.atalocal.domain.MeetingStatus
 import br.com.betinhos.atalocal.models.selectWhisperModel
 import br.com.betinhos.atalocal.audio.SegmentFileStore
@@ -20,6 +21,13 @@ object PipelineRecovery {
             if (meeting.status == MeetingStatus.RECORDING) {
                 val recovered = SegmentFileStore(segmentsDirectory).recover()
                 if (recovered.isNotEmpty()) {
+                    val indexed = database.audioSegmentDao().listAll(meeting.id).associateBy { it.sequence }
+                    recovered.forEach { file ->
+                        val sequence = Regex("segment-(\\d+)\\.wav").matchEntire(file.name)?.groupValues?.get(1)?.toIntOrNull() ?: return@forEach
+                        if (indexed[sequence] == null) {
+                            database.audioSegmentDao().upsert(AudioSegmentEntity(meeting.id, sequence, file.absolutePath, durationMs(file)))
+                        }
+                    }
                     database.meetingDao().updateStatus(meeting.id, MeetingStatus.RECORDED, recoveredDuration(recovered))
                     effectiveStatus = MeetingStatus.RECORDED
                 } else {
@@ -39,8 +47,10 @@ object PipelineRecovery {
     }
 
     private fun recoveredDuration(files: List<File>): Long = files.sumOf { file ->
-        ((file.length() - 44L).coerceAtLeast(0L) / (RecordingConstants.BYTES_PER_SAMPLE * RecordingConstants.SAMPLE_RATE)).coerceAtLeast(0L)
+        durationMs(file) / 1_000L
     }
+
+    private fun durationMs(file: File): Long = ((file.length() - 44L).coerceAtLeast(0L) * 1_000L / (RecordingConstants.BYTES_PER_SAMPLE * RecordingConstants.SAMPLE_RATE)).coerceAtLeast(0L)
 
     private object RecordingConstants {
         const val BYTES_PER_SAMPLE = 2L
