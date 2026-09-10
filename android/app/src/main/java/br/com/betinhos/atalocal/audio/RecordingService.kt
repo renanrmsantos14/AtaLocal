@@ -93,6 +93,7 @@ class RecordingService : Service() {
         var writer = WavSegmentWriter(store.temporary(sequence)).also { it.open() }
         var lastLevelReport = 0L
         var lastHeartbeat = 0L
+        var captureError: String? = null
         try {
             while (running) {
                 if (paused) {
@@ -100,7 +101,11 @@ class RecordingService : Service() {
                     continue
                 }
                 val count = recorder?.read(buffer, 0, buffer.size) ?: 0
-                if (count <= 0) continue
+                if (count < 0) {
+                    if (running) throw IllegalStateException(audioReadFailureMessage(count))
+                    break
+                }
+                if (count == 0) continue
                 val now = SystemClock.elapsedRealtime()
                 if (now - lastHeartbeat >= 5_000L) {
                     sessionMeetingId?.let(sessionStore::touch)
@@ -131,6 +136,8 @@ class RecordingService : Service() {
                     }
                 }
             }
+        } catch (error: Throwable) {
+            captureError = error.message ?: "A captura do microfone foi interrompida"
         } finally {
             writer.close()
             if (samplesInSegment > 0) {
@@ -138,11 +145,20 @@ class RecordingService : Service() {
                 persistSegment(completed, sequence, samplesInSegment)
             }
             sessionMeetingId?.let(sessionStore::clear)
-            sendBroadcast(
-                Intent(ACTION_STOPPED)
-                    .setPackage(packageName)
-                    .putExtra(EXTRA_MEETING_ID, currentMeetingId)
-            )
+            if (captureError == null) {
+                sendBroadcast(
+                    Intent(ACTION_STOPPED)
+                        .setPackage(packageName)
+                        .putExtra(EXTRA_MEETING_ID, currentMeetingId)
+                )
+            } else {
+                sendBroadcast(
+                    Intent(ACTION_ERROR)
+                        .setPackage(packageName)
+                        .putExtra(EXTRA_MEETING_ID, currentMeetingId)
+                        .putExtra(EXTRA_ERROR, captureError)
+                )
+            }
         }
     }
 
@@ -183,3 +199,6 @@ class RecordingService : Service() {
 
     private var currentMeetingId: String? = null
 }
+
+internal fun audioReadFailureMessage(code: Int): String =
+    "A captura do microfone foi interrompida (código $code). Verifique a permissão e tente novamente."
