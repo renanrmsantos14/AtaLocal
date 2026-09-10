@@ -4,6 +4,8 @@ import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -145,7 +147,12 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
             if (artifact != null) {
                 item { Text("Modelo usado: ${artifact.modelVersion ?: "não informado"}", style = MaterialTheme.typography.bodySmall) }
                 item { OutlinedTextField(edited, { edited = it }, Modifier.fillMaxWidth(), minLines = 12, label = { Text("Conteúdo editável") }) }
-                item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item { Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     OutlinedButton(onClick = { scope.launch { PipelineScheduler.regenerateSummary(context, meetingId) } }) { Text("Regenerar") }
                     Button(onClick = { scope.launch { database.artifactDao().upsert(artifact.copy(content = edited, editedByUser = true)) } }) { Text("Salvar") }
                     OutlinedButton(onClick = {
