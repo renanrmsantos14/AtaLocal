@@ -9,6 +9,7 @@ data class MeetingEntity(
     @PrimaryKey val id: String,
     val title: String,
     val createdAtEpochMs: Long,
+    val durationSeconds: Long = 0,
     val status: MeetingStatus = MeetingStatus.DRAFT,
     val note: String? = null,
     val error: String? = null
