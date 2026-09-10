@@ -27,6 +27,18 @@ function CloseIcon() {
   return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>;
 }
 
+function NavIcon({ id }: { id: Tab }) {
+  const paths: Record<Tab, string> = {
+    record: "M10 3v10m0 0a3 3 0 1 0 3 3H7a3 3 0 1 0 3-3Zm-5 0a5 5 0 0 0 10 0",
+    meetings: "M4 5.5h12v10H4zM7 3v5m6-5v5M4 9h12",
+    models: "M5 4.5h10v11H5zM8 7h4M8 10h4M8 13h2",
+    diagnostics: "M3 10h3l1.5-4 3 8 1.5-4H17",
+    logs: "M5 4h10v12H5zM8 7h4M8 10h4M8 13h2",
+    settings: "M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0-3v1m0 11v1M3.5 10h1m11 0h1M5.4 5.4l.7.7m7.8 7.8.7.7m0-9.2-.7.7m-7.8 7.8-.7.7",
+  };
+  return <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true"><path d={paths[id]} /></svg>;
+}
+
 export function App() {
   const [tab, setTab] = useState<Tab>("record");
   const [meetingsRefresh, setMeetingsRefresh] = useState(0);
@@ -61,8 +73,7 @@ export function App() {
     <div className={`app-shell theme-${theme} variant-${variant}`}>
       <aside className="sidebar" aria-label="Navegação principal">
         <div className="brand-lockup">
-          <div className="brand-name">AtaLocal</div>
-          <div className="brand-meta">100% local</div>
+          <div className="brand-row"><span className="brand-mark" aria-hidden="true">A</span><div><div className="brand-name">AtaLocal</div><div className="brand-meta">100% local</div></div></div>
         </div>
 
         <button className="search-trigger" onClick={() => setSearchOpen(true)} aria-label="Abrir busca">
@@ -79,13 +90,14 @@ export function App() {
             onClick={() => goTo(item.id)}
             title={item.detail}
           >
-            <span className="nav-dot" aria-hidden="true" />
+            <NavIcon id={item.id} />
             <span>{item.label}</span>
           </button>
         ))}
         </nav>
 
         <div className="sidebar-footer">
+          <div className="privacy-status"><span className="status-pulse" /> <span><b>Modo privado</b><small>dados neste dispositivo</small></span></div>
           <div className="footer-label">variação</div>
           <div className="segmented-control" role="group" aria-label="Variação de layout">
             <button className={variant === "foco" ? "selected" : ""} onClick={() => setVariant("foco")} aria-pressed={variant === "foco"}>Foco</button>
@@ -99,6 +111,10 @@ export function App() {
         </div>
       </aside>
       <main className="content">
+        <div className="workspace-bar">
+          <span className="workspace-context"><span className="workspace-dot" /> Ambiente local</span>
+          <span className="workspace-hint">Sem conta · sem nuvem</span>
+        </div>
         {openMeeting ? (
           <div className="route-wrap">
             <button className="back-link" onClick={() => setOpenMeeting(null)}><span aria-hidden="true">←</span> Reuniões</button>
