@@ -1,6 +1,7 @@
 package br.com.betinhos.atalocal.transcription
 
 import java.io.File
+import org.json.JSONArray
 
 data class NativeTranscriptSegment(
     val startMs: Long,
@@ -17,12 +18,22 @@ class JniWhisperEngine : WhisperEngine {
     override fun transcribe(model: File, audio: File, language: String): List<NativeTranscriptSegment> {
         require(model.isFile) { "Modelo Whisper ausente: ${model.name}" }
         require(audio.isFile) { "Áudio ausente: ${audio.name}" }
-        return WhisperNative.transcribe(model.absolutePath, audio.absolutePath, language)
+        val raw = WhisperNative.transcribeJson(model.absolutePath, audio.absolutePath, language)
+        val json = JSONArray(raw)
+        return List(json.length()) { index ->
+            val item = json.getJSONObject(index)
+            NativeTranscriptSegment(
+                startMs = item.getLong("start_ms"),
+                endMs = item.getLong("end_ms"),
+                text = item.getString("text"),
+                confidence = item.optDouble("confidence").takeUnless { it.isNaN() }?.toFloat()
+            )
+        }
     }
 }
 
-private object WhisperNative {
+object WhisperNative {
     init { System.loadLibrary("whisper_jni") }
 
-    external fun transcribe(modelPath: String, audioPath: String, language: String): List<NativeTranscriptSegment>
+    external fun transcribeJson(modelPath: String, audioPath: String, language: String): String
 }
