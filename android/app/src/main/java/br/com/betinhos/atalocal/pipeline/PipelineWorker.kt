@@ -14,6 +14,7 @@ import br.com.betinhos.atalocal.summarization.parseMinutesOrFallback
 import br.com.betinhos.atalocal.data.ArtifactEntity
 import kotlinx.coroutines.flow.first
 import java.io.File
+import android.util.Log
 
 class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
@@ -50,6 +51,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                         "processing-${index + 1}/${segments.size}"
                     )
                 )
+                Log.i(TAG, "Transcrevendo ${audio.name} de ${segments.size} para $meetingId")
                 val transcript = engine.transcribe(File(modelPath), audio, language)
                 dao.upsertAll(transcript.mapIndexed { itemIndex, item ->
                     br.com.betinhos.atalocal.data.TranscriptSegmentEntity(
@@ -77,6 +79,8 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             meetingDao.updateStatusClearingError(meetingId, MeetingStatus.GENERATING)
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, 0f, "summary"))
             val transcript = dao.listAll(meetingId).joinToString("\n") { "[${it.startMs}ms] ${it.text}" }
+            database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, 0f, "gerando-ata"))
+            Log.i(TAG, "Gerando ata para $meetingId com ${transcript.length} caracteres de transcrição")
             val minutes = parseMinutesOrFallback(JniLlamaEngine().generate(File(llamaPath), buildFactualPrompt(transcript)), transcript)
             database.artifactDao().upsert(ArtifactEntity(
                 id = "$meetingId-minutes", meetingId = meetingId, type = "minutes",
@@ -86,9 +90,11 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             meetingDao.updateStatusClearingError(meetingId, MeetingStatus.READY)
             Result.success()
         } catch (error: Throwable) {
+            Log.e(TAG, "Falha no pipeline de $meetingId na tentativa $runAttemptCount", error)
             if (runAttemptCount < 2) {
-                database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.QUEUED, error = "Tentativa ${runAttemptCount + 1} falhou; tentando novamente"))
-                meetingDao.updateStatus(meetingId, MeetingStatus.QUEUED)
+                val checkpoint = database.processingJobDao().observe(meetingId).first()?.checkpoint
+                database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.TRANSCRIBING, checkpoint = checkpoint, error = "Tentativa ${runAttemptCount + 1} falhou; retomando do último segmento salvo"))
+                meetingDao.updateStatus(meetingId, MeetingStatus.TRANSCRIBING)
                 return Result.retry()
             }
             fail(database, meetingId, error.message ?: "Falha nativa do Whisper")
@@ -102,6 +108,7 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
     }
 
     companion object {
+        private const val TAG = "AtaLocalPipeline"
         const val KEY_MEETING_ID = "meeting_id"
         const val KEY_MODEL_PATH = "whisper_model_path"
         const val KEY_AUDIO_DIRECTORY = "audio_directory"

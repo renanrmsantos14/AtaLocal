@@ -7,10 +7,23 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import br.com.betinhos.atalocal.data.DatabaseProvider
+import br.com.betinhos.atalocal.data.ProcessingJobEntity
+import br.com.betinhos.atalocal.domain.MeetingStatus
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 object PipelineScheduler {
-    fun enqueue(context: Context, meetingId: String, modelPath: String? = null, language: String = "pt") {
+    suspend fun enqueue(context: Context, meetingId: String, modelPath: String? = null, language: String = "pt") {
+        val database = DatabaseProvider.get(context.applicationContext)
+        if (modelPath.isNullOrBlank() || !File(modelPath).isFile) {
+            val message = "Modelo Whisper não instalado. Abra Modelos e instale um modelo de transcrição."
+            database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.FAILED, error = message))
+            database.meetingDao().updateStatus(meetingId, MeetingStatus.FAILED, error = message)
+            return
+        }
+        database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.QUEUED, checkpoint = "queued"))
+        database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.QUEUED)
         val request = OneTimeWorkRequestBuilder<PipelineWorker>()
             .setInputData(workDataOf(
                 PipelineWorker.KEY_MEETING_ID to meetingId,

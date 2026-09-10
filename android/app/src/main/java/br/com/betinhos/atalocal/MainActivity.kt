@@ -272,7 +272,7 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
                         Text("${meeting.status.userLabel()} · ${meeting.durationSeconds}s")
                         if (job != null && meeting.status in setOf(br.com.betinhos.atalocal.domain.MeetingStatus.QUEUED, br.com.betinhos.atalocal.domain.MeetingStatus.TRANSCRIBING, br.com.betinhos.atalocal.domain.MeetingStatus.GENERATING)) {
                             if (job!!.progress > 0f) LinearProgressIndicator(progress = { job!!.progress }, Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth())
-                            Text(job!!.checkpoint?.replace('-', ' ') ?: "Processando localmente…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(job!!.checkpoint?.let(::homeCheckpointLabel) ?: "Processando localmente…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         meeting.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         if (meeting.status == br.com.betinhos.atalocal.domain.MeetingStatus.RECORDING) {
@@ -313,4 +313,12 @@ private fun HomeScreen(database: AtaLocalDatabase, dao: MeetingDao, modelDao: Mo
             dismissButton = { TextButton(onClick = { dialogOpen = false }) { Text("Cancelar") } }
         )
     }
+}
+
+private fun homeCheckpointLabel(checkpoint: String): String = when {
+    checkpoint == "queued" -> "Aguardando processamento local…"
+    checkpoint == "gerando-ata" -> "Gerando ata…"
+    checkpoint.startsWith("processing-") -> "Transcrevendo segmento ${checkpoint.removePrefix("processing-")}…"
+    checkpoint.startsWith("segment-") -> "Transcrição salva: segmento ${checkpoint.removePrefix("segment-")}"
+    else -> checkpoint.replace('-', ' ')
 }

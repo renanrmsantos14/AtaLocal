@@ -53,8 +53,8 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                         } else {
                             LinearProgressIndicator(progress = { current.progress }, Modifier.fillMaxWidth())
                         }
-                        current.checkpoint?.takeIf { it.startsWith("segment-") }?.let {
-                            Text("Segmento $it", style = MaterialTheme.typography.bodySmall)
+                        current.checkpoint?.let { checkpoint ->
+                            Text(checkpointLabel(checkpoint), style = MaterialTheme.typography.bodySmall)
                         }
                         current.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         if (current.status == MeetingStatus.TRANSCRIBING && current.error == null) {
@@ -141,4 +141,13 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
         },
         dismissButton = { TextButton(onClick = { deleteOpen = false }) { Text("Cancelar") } }
     )
+}
+
+private fun checkpointLabel(checkpoint: String): String = when {
+    checkpoint == "queued" -> "Aguardando processamento local…"
+    checkpoint == "gerando-ata" -> "Gerando a ata com base na transcrição…"
+    checkpoint.startsWith("processing-") -> "Transcrevendo segmento ${checkpoint.removePrefix("processing-")}…"
+    checkpoint.startsWith("segment-") -> "Segmento ${checkpoint.removePrefix("segment-")} concluído"
+    checkpoint == "complete" -> "Processamento concluído"
+    else -> checkpoint.replace('-', ' ')
 }
