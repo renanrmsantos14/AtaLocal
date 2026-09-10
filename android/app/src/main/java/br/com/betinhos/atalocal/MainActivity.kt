@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
     private var recordingUiMeetingId by mutableStateOf<String?>(null)
     private var recordingUiStartedAt by mutableStateOf(0L)
     private var microphoneLevel by mutableStateOf(0f)
+    private var openMeetingAfterStop by mutableStateOf<String?>(null)
     private val levelReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) { microphoneLevel = intent.getFloatExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_LEVEL, 0f) }
     }
@@ -107,8 +108,9 @@ class MainActivity : ComponentActivity() {
                 var selectedMeeting by rememberSaveable { mutableStateOf<String?>(null) }
                 var showDiagnostics by rememberSaveable { mutableStateOf(false) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
+                val detailMeetingId = selectedMeeting ?: openMeetingAfterStop
                 if (recordingUiMeetingId != null) RecordingScreen(recordingUiStartedAt, microphoneLevel, ::togglePause, ::stopRecording)
-                else if (selectedMeeting != null) MeetingDetailScreen(database, selectedMeeting!!, onBack = { selectedMeeting = null })
+                else if (detailMeetingId != null) MeetingDetailScreen(database, detailMeetingId, onBack = { selectedMeeting = null; openMeetingAfterStop = null })
                 else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), meetingDao, onBack = { showDiagnostics = false })
                 else if (showSettings) SettingsScreen(onBack = { showSettings = false })
                 else HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onTogglePause = ::togglePause, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true }, onOpenSettings = { showSettings = true })
@@ -160,6 +162,7 @@ class MainActivity : ComponentActivity() {
         activeMeetingId = null
         recordingUiMeetingId = null
         microphoneLevel = 0f
+        openMeetingAfterStop = id
     }
 
     private fun togglePause() {
