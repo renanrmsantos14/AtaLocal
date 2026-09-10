@@ -6,6 +6,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.Assert.assertThrows
+import kotlinx.coroutines.runBlocking
+import java.security.MessageDigest
 
 class ModelDownloaderTest {
     @Test fun replacesExistingModelOnlyAfterValidatedDownload() {
@@ -37,5 +39,22 @@ class ModelDownloaderTest {
         assertEquals("modelo antigo", target.readText())
         assertTrue(partial.exists())
         directory.deleteRecursively()
+    }
+
+    @Test fun installsCompletePartialFileWithoutNetworkRequest() {
+        runBlocking {
+            val directory = Files.createTempDirectory("atalocal-model").toFile()
+            val partial = directory.resolve("model.bin.download")
+            val content = "modelo-ok".toByteArray()
+            partial.writeBytes(content)
+            val sha = MessageDigest.getInstance("SHA-256").digest(content).joinToString("") { "%02x".format(it) }
+            val spec = ModelSpec("model.bin", "whisper", "1", "http://127.0.0.1:1/never", sha, content.size.toLong())
+
+            val installed = ModelDownloader(directory).download(spec)
+
+            assertEquals(content.toList(), installed.readBytes().toList())
+            assertFalse(partial.exists())
+            directory.deleteRecursively()
+        }
     }
 }

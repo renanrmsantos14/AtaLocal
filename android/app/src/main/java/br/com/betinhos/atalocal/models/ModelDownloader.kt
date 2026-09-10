@@ -16,6 +16,15 @@ class ModelDownloader(private val directory: File) {
         val target = File(directory, spec.id)
         val partial = File(directory, "${spec.id}.download")
         if (partial.length() > spec.sizeBytes) partial.delete()
+        if (partial.isFile && partial.length() == spec.sizeBytes) {
+            try {
+                validateDownloadedFile(partial, spec)
+                installAtomically(partial, target)
+                return@withContext target
+            } catch (_: IllegalStateException) {
+                partial.delete()
+            }
+        }
         var downloaded = if (partial.isFile) partial.length() else 0L
         val connection = (URL(spec.url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
