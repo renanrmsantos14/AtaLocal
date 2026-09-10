@@ -34,10 +34,13 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
     val job by database.processingJobDao().observe(meetingId).collectAsState(initial = null)
     var edited by remember(artifact?.id, artifact?.content) { mutableStateOf(artifact?.content.orEmpty()) }
     var search by rememberSaveable { mutableStateOf("") }
+    var deleteOpen by rememberSaveable { mutableStateOf(false) }
     val visibleTranscript = transcript.filter { search.isBlank() || it.text.contains(search, ignoreCase = true) || it.editedText?.contains(search, ignoreCase = true) == true }
 
     Scaffold(topBar = { TopAppBar(title = { Text(meeting?.title ?: "Reunião") }, navigationIcon = {
         TextButton(onClick = onBack) { Text("Voltar") }
+    }, actions = {
+        TextButton(onClick = { deleteOpen = true }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
     }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
             item { Text(meeting?.status?.userLabel() ?: "", style = MaterialTheme.typography.labelLarge) }
@@ -103,4 +106,25 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
             }
         }
     }
+
+    if (deleteOpen) AlertDialog(
+        onDismissRequest = { deleteOpen = false },
+        title = { Text("Excluir reunião?") },
+        text = { Text("O áudio, a transcrição e a ata desta reunião serão removidos deste aparelho. Esta ação não pode ser desfeita.") },
+        confirmButton = {
+            TextButton(onClick = {
+                scope.launch {
+                    WorkManager.getInstance(context).cancelUniqueWork("pipeline-$meetingId")
+                    WorkManager.getInstance(context).cancelUniqueWork("summary-$meetingId")
+                    database.processingJobDao().deleteForMeeting(meetingId)
+                    database.transcriptSegmentDao().deleteForMeeting(meetingId)
+                    database.artifactDao().deleteForMeeting(meetingId)
+                    database.meetingDao().delete(meetingId)
+                    context.filesDir.resolve("meetings").resolve(meetingId).deleteRecursively()
+                    onBack()
+                }
+            }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = { TextButton(onClick = { deleteOpen = false }) { Text("Cancelar") } }
+    )
 }

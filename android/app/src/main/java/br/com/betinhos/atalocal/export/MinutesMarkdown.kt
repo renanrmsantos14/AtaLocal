@@ -8,6 +8,7 @@ fun minutesToMarkdown(minutes: Minutes): String = buildString {
     appendLine("## Resumo")
     appendLine(minutes.summary)
     appendLine()
+    section("Participantes identificados", minutes.participants)
     section("Assuntos tratados", minutes.topics)
     section("Decisões", minutes.decisions)
     appendLine("## Tarefas")

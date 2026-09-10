@@ -6,7 +6,7 @@ fun buildFactualPrompt(transcript: String): String = """
     Quando um dado não existir, use null ou uma lista vazia.
     Cada tarefa deve conter evidência literal ou paráfrase fiel da transcrição.
     Responda somente um JSON válido, sem markdown, neste formato:
-    {"resumo":"","assuntos":[],"decisoes":[],"tarefas":[{"descricao":"","responsavel":null,"prazo":null,"evidencia":""}],"pendencias":[],"alertas":[]}
+    {"resumo":"","participantes":[],"assuntos":[],"decisoes":[],"tarefas":[{"descricao":"","responsavel":null,"prazo":null,"evidencia":""}],"pendencias":[],"alertas":[]}
 
     TRANSCRIÇÃO:
     $transcript

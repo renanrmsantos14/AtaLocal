@@ -15,4 +15,7 @@ interface ArtifactDao {
 
     @Query("DELETE FROM artifacts WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("DELETE FROM artifacts WHERE meetingId = :meetingId")
+    suspend fun deleteForMeeting(meetingId: String)
 }

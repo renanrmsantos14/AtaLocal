@@ -7,9 +7,10 @@ import org.junit.Test
 
 class MinutesParserTest {
     @Test fun parsesFactualStructuredMinutes() {
-        val minutes = parseMinutes("""{"resumo":"Decidimos o prazo.","assuntos":["Prazo"],"decisoes":["Entregar sexta"],"tarefas":[{"descricao":"Enviar arquivo","responsavel":null,"prazo":null,"evidencia":"vamos enviar"}],"pendencias":[],"alertas":[]}""")
+        val minutes = parseMinutes("""{"resumo":"Decidimos o prazo.","participantes":["Renan"],"assuntos":["Prazo"],"decisoes":["Entregar sexta"],"tarefas":[{"descricao":"Enviar arquivo","responsavel":null,"prazo":null,"evidencia":"vamos enviar"}],"pendencias":[],"alertas":[]}""")
 
         assertEquals("Decidimos o prazo.", minutes.summary)
+        assertEquals(listOf("Renan"), minutes.participants)
         assertNull(minutes.tasks.single().assignee)
         assertEquals("vamos enviar", minutes.tasks.single().evidence)
     }

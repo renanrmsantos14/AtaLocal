@@ -4,11 +4,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 data class MinuteTask(val description: String, val assignee: String?, val due: String?, val evidence: String)
-data class Minutes(val summary: String, val topics: List<String>, val decisions: List<String>, val tasks: List<MinuteTask>, val pending: List<String>, val alerts: List<String>)
+data class Minutes(val summary: String, val topics: List<String>, val decisions: List<String>, val tasks: List<MinuteTask>, val pending: List<String>, val alerts: List<String>, val participants: List<String> = emptyList())
 
 fun parseMinutesOrFallback(raw: String): Minutes = runCatching { parseMinutes(raw) }.getOrElse {
     Minutes(
         summary = "A ata automática não pôde ser estruturada.",
+        participants = emptyList(),
         topics = emptyList(),
         decisions = emptyList(),
         tasks = emptyList(),
@@ -23,6 +24,7 @@ fun parseMinutes(raw: String): Minutes {
     val tasks = json.optJSONArray("tarefas").toTasks()
     return Minutes(
         summary = json.optString("resumo").trim().also { require(it.isNotEmpty()) { "Resumo ausente" } },
+        participants = strings("participantes"),
         topics = strings("assuntos"),
         decisions = strings("decisoes"),
         tasks = tasks,

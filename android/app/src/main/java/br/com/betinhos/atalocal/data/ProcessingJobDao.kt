@@ -12,4 +12,7 @@ interface ProcessingJobDao {
 
     @Upsert
     suspend fun upsert(job: ProcessingJobEntity)
+
+    @Query("DELETE FROM processing_jobs WHERE meetingId = :meetingId")
+    suspend fun deleteForMeeting(meetingId: String)
 }
