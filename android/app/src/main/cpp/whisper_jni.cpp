@@ -27,8 +27,24 @@ std::vector<float> read_pcm16_wav(const char *path) {
 std::string json_escape(const std::string &value) {
     std::string escaped;
     for (const char character : value) {
-        if (character == '\\' || character == '"') escaped += '\\';
-        escaped += character;
+        switch (character) {
+            case '\\': escaped += "\\\\"; break;
+            case '"': escaped += "\\\""; break;
+            case '\n': escaped += "\\n"; break;
+            case '\r': escaped += "\\r"; break;
+            case '\t': escaped += "\\t"; break;
+            case '\b': escaped += "\\b"; break;
+            case '\f': escaped += "\\f"; break;
+            default:
+                if (static_cast<unsigned char>(character) < 0x20) {
+                    const char hex[] = "0123456789abcdef";
+                    escaped += "\\u00";
+                    escaped += hex[(character >> 4) & 0x0f];
+                    escaped += hex[character & 0x0f];
+                } else {
+                    escaped += character;
+                }
+        }
     }
     return escaped;
 }
