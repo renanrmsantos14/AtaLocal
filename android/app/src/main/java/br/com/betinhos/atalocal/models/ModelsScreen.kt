@@ -65,6 +65,11 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
                         ModelSummary("PRIVACIDADE", "100% local")
                     }
                 }
+                Text(
+                    "Você pode iniciar mais de um download. Eles continuam em segundo plano mesmo se você sair desta tela.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
             items(AndroidModelCatalog.all) { spec ->
