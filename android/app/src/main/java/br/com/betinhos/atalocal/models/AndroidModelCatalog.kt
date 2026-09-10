@@ -37,6 +37,15 @@ object AndroidModelCatalog {
         sizeBytes = 574_041_195
     )
 
+    val qwen25Small = ModelSpec(
+        id = "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        kind = "llm",
+        version = "1",
+        url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        sha256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
+        sizeBytes = 1_117_320_736
+    )
+
     val qwen3 = ModelSpec(
         id = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
         kind = "llm",
@@ -46,5 +55,5 @@ object AndroidModelCatalog {
         sizeBytes = 2_497_281_120
     )
 
-    val all = listOf(whisperTiny, whisperBase, whisperSmall, whisperLargeTurbo, qwen3)
+    val all = listOf(whisperTiny, whisperBase, whisperSmall, whisperLargeTurbo, qwen25Small, qwen3)
 }

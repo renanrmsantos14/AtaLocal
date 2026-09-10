@@ -55,4 +55,15 @@ class ModelSelectionTest {
             )))
         } finally { tiny.delete(); base.delete() }
     }
+
+    @Test fun `prefere LLM menor quando não há preferência configurada`() {
+        val small = File.createTempFile("qwen-small", ".gguf")
+        val large = File.createTempFile("qwen-large", ".gguf")
+        try {
+            assertEquals(small.absolutePath, selectModel(listOf(
+                ModelInstallEntity("Qwen3-4B-Instruct-Q4.gguf", "llm", "1", large.path, 1, "hash"),
+                ModelInstallEntity("qwen2.5-1.5b-instruct-q4_k_m.gguf", "llm", "1", small.path, 1, "hash")
+            ), "llm"))
+        } finally { small.delete(); large.delete() }
+    }
 }
