@@ -77,6 +77,18 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                     }
                 }
             }
+            if (meeting?.status == MeetingStatus.RECORDED && job == null) {
+                item {
+                    Button(onClick = {
+                        scope.launch {
+                            val language = context.getSharedPreferences("atalocal.settings", android.content.Context.MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
+                            database.processingJobDao().upsert(br.com.betinhos.atalocal.data.ProcessingJobEntity(meetingId, MeetingStatus.QUEUED, checkpoint = "queued"))
+                            database.meetingDao().updateStatusClearingError(meetingId, MeetingStatus.QUEUED)
+                            PipelineScheduler.enqueue(context, meetingId, selectWhisperModel(database.modelInstallDao().observeAll().first()), language)
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Processar agora") }
+                }
+            }
             item { Text("Transcrição", style = MaterialTheme.typography.titleLarge) }
             item { OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), label = { Text("Buscar na transcrição") }, singleLine = true) }
             if (transcript.isEmpty()) item { Text("A transcrição aparecerá aqui após o processamento.") }
