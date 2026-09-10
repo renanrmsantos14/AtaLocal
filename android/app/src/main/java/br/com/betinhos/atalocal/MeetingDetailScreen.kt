@@ -37,6 +37,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
     var edited by remember(artifact?.id, artifact?.content) { mutableStateOf(artifact?.content.orEmpty()) }
     var search by rememberSaveable { mutableStateOf("") }
     var deleteOpen by rememberSaveable { mutableStateOf(false) }
+    var activeSection by rememberSaveable { mutableStateOf("transcript") }
     val visibleTranscript = transcript.filter { search.isBlank() || it.text.contains(search, ignoreCase = true) || it.editedText?.contains(search, ignoreCase = true) == true }
     val currentStatus = meeting?.status ?: MeetingStatus.DRAFT
     val progress = job?.progress?.coerceIn(0f, 1f) ?: 0f
@@ -120,6 +121,13 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                     }, modifier = Modifier.fillMaxWidth()) { Text("Processar agora") }
                 }
             }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = activeSection == "transcript", onClick = { activeSection = "transcript" }, label = { Text("Transcrição") })
+                    FilterChip(selected = activeSection == "minutes", onClick = { activeSection = "minutes" }, label = { Text("Ata") })
+                }
+            }
+            if (activeSection == "transcript") {
             item { Text("Transcrição", style = MaterialTheme.typography.titleLarge) }
             item { OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), label = { Text("Buscar na transcrição") }, singleLine = true) }
             if (transcript.isEmpty()) item { Text("A transcrição aparecerá aqui após o processamento.") }
@@ -131,6 +139,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                     supportingText = if ((segment.confidence ?: 1f) < 0.6f) ({ Text("Revise este trecho antes de usar na ata.", color = MaterialTheme.colorScheme.error) }) else null,
                     trailingIcon = { TextButton(onClick = { scope.launch { database.transcriptSegmentDao().updateEditedText(segment.id, text) } }) { Text("Salvar") } })
             }
+            } else {
             item { Text("Ata", style = MaterialTheme.typography.titleLarge) }
             if (artifact == null) item { Text("A ata será gerada quando os modelos Whisper e Llama estiverem instalados.") }
             if (artifact != null) {
@@ -147,6 +156,7 @@ fun MeetingDetailScreen(database: AtaLocalDatabase, meetingId: String, onBack: (
                         context.startActivity(Intent.createChooser(sharePdf(context, exportTextPdf(context, edited)), "Compartilhar PDF"))
                     }) { Text("PDF") }
                 } }
+            }
             }
         }
     }
