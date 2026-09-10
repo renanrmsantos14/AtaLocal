@@ -3,6 +3,7 @@ package br.com.betinhos.atalocal.models
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -25,7 +26,7 @@ class ModelDownloader(private val directory: File) {
             }
             val expected = if (connection.contentLengthLong > 0) downloaded + connection.contentLengthLong else spec.sizeBytes
             connection.inputStream.use { input ->
-                partial.outputStream(append = downloaded > 0).use { output ->
+                FileOutputStream(partial, downloaded > 0).use { output ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     var read: Int
                     while (input.read(buffer).also { read = it } >= 0) {

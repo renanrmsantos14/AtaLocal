@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,12 +40,15 @@ import br.com.betinhos.atalocal.data.MeetingDao
 import br.com.betinhos.atalocal.data.ModelInstallDao
 import br.com.betinhos.atalocal.pipeline.PipelineScheduler
 import br.com.betinhos.atalocal.models.ModelsScreen
+import br.com.betinhos.atalocal.models.selectWhisperModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 class MainActivity : ComponentActivity() {
     private var activeMeetingId: String? = null
     private var recordingStartedAt: Long = 0L
     private lateinit var meetingDao: MeetingDao
+    private lateinit var modelInstallDao: ModelInstallDao
     private val microphonePermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -55,6 +59,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val database = Room.databaseBuilder(applicationContext, AtaLocalDatabase::class.java, "atalocal.db").build()
         meetingDao = database.meetingDao()
+        modelInstallDao = database.modelInstallDao()
         setContent {
             AtaLocalTheme {
                 HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording)
@@ -89,7 +94,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             meetingDao.updateStatus(id, br.com.betinhos.atalocal.domain.MeetingStatus.RECORDED, duration)
         }
-        PipelineScheduler.enqueue(this, id)
+        lifecycleScope.launch {
+            val modelPath = selectWhisperModel(modelInstallDao.observeAll().first())
+            PipelineScheduler.enqueue(this@MainActivity, id, modelPath)
+        }
         activeMeetingId = null
     }
 }
@@ -100,6 +108,7 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecording: (String) -> Unit, onStopRecording: () -> Unit) {
     val meetings by dao.observeAll().collectAsState(initial = emptyList())
     val scope = androidx.compose.runtime.rememberCoroutineScope()

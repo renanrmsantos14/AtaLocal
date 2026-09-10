@@ -1,5 +1,7 @@
 package br.com.betinhos.atalocal.diagnostics
 
+import java.util.Locale
+
 fun formatBytes(bytes: Long): String {
     require(bytes >= 0)
     if (bytes < 1024) return "$bytes B"
@@ -7,5 +9,5 @@ fun formatBytes(bytes: Long): String {
     var value = bytes.toDouble()
     var index = -1
     do { value /= 1024; index++ } while (value >= 1024 && index < units.lastIndex)
-    return "%.1f %s".format(value, units[index])
+    return String.format(Locale.US, "%.1f %s", value, units[index])
 }
