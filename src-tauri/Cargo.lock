@@ -92,7 +92,7 @@ dependencies = [
 
 [[package]]
 name = "atalocal"
-version = "0.4.9"
+version = "0.4.14"
 dependencies = [
  "bzip2",
  "chrono",
