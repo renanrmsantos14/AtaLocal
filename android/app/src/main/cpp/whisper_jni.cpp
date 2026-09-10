@@ -2,6 +2,8 @@
 #include <android/log.h>
 #include <whisper.h>
 #include <fstream>
+#include <iterator>
+#include <cstdint>
 #include <sstream>
 #include <vector>
 
@@ -12,12 +14,11 @@ std::vector<float> read_pcm16_wav(const char *path) {
     std::ifstream file(path, std::ios::binary);
     if (!file) return {};
     file.seekg(44, std::ios::beg);
-    std::vector<int16_t> samples((std::istreambuf_iterator<char>(file)), {});
+    std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), {});
     std::vector<float> audio;
-    audio.reserve(samples.size() / 2);
-    for (size_t i = 0; i + 1 < samples.size(); i += 2) {
-        const auto value = static_cast<int16_t>(static_cast<uint8_t>(samples[i]) |
-            (static_cast<uint16_t>(static_cast<uint8_t>(samples[i + 1])) << 8));
+    audio.reserve(bytes.size() / 2);
+    for (size_t i = 0; i + 1 < bytes.size(); i += 2) {
+        const auto value = static_cast<int16_t>(bytes[i] | (static_cast<uint16_t>(bytes[i + 1]) << 8));
         audio.push_back(static_cast<float>(value) / 32768.0f);
     }
     return audio;

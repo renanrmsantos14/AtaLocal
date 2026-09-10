@@ -35,5 +35,5 @@ class JniWhisperEngine : WhisperEngine {
 object WhisperNative {
     init { System.loadLibrary("whisper_jni") }
 
-    external fun transcribeJson(modelPath: String, audioPath: String, language: String): String
+    @JvmStatic external fun transcribeJson(modelPath: String, audioPath: String, language: String): String
 }
