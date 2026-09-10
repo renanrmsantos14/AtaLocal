@@ -10,14 +10,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import br.com.betinhos.atalocal.data.ModelInstallDao
-import kotlinx.coroutines.flow.collectLatest
+import br.com.betinhos.atalocal.data.MeetingDao
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiagnosticsScreen(modelDao: ModelInstallDao, onBack: () -> Unit) {
+fun DiagnosticsScreen(modelDao: ModelInstallDao, meetingDao: MeetingDao, onBack: () -> Unit) {
     val context = LocalContext.current
     val models by modelDao.observeAll().collectAsState(initial = emptyList())
-    val snapshot = remember(models) { collectDiagnostics(context, models, null) }
+    val meetings by meetingDao.observeAll().collectAsState(initial = emptyList())
+    val snapshot = remember(models, meetings) { collectDiagnostics(context, models, meetings.firstNotNullOfOrNull { it.error }) }
     val report = buildString {
         appendLine("AtaLocal ${snapshot.appVersion}")
         appendLine("Android ${snapshot.androidVersion}")

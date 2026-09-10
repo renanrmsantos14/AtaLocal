@@ -31,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -73,10 +74,10 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             AtaLocalTheme {
-                var selectedMeeting by remember { mutableStateOf<String?>(null) }
-                var showDiagnostics by remember { mutableStateOf(false) }
+                var selectedMeeting by rememberSaveable { mutableStateOf<String?>(null) }
+                var showDiagnostics by rememberSaveable { mutableStateOf(false) }
                 if (selectedMeeting != null) MeetingDetailScreen(database, selectedMeeting!!, onBack = { selectedMeeting = null })
-                else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), onBack = { showDiagnostics = false })
+                else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), meetingDao, onBack = { showDiagnostics = false })
                 else HomeScreen(meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onTogglePause = ::togglePause, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true })
             }
         }
