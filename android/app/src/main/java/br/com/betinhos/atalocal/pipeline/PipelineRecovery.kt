@@ -13,7 +13,8 @@ object PipelineRecovery {
     suspend fun recover(context: Context, database: AtaLocalDatabase) {
         val preferences = context.getSharedPreferences("atalocal.settings", Context.MODE_PRIVATE)
         val language = preferences.getString("transcription_language", "pt") ?: "pt"
-        val whisperModel = selectWhisperModel(database.modelInstallDao().observeAll().first())
+        val preferredWhisper = preferences.getString("default_whisper_model", null)
+        val whisperModel = selectWhisperModel(database.modelInstallDao().observeAll().first(), preferredWhisper)
 
         database.meetingDao().listAll().forEach { meeting ->
             val segmentsDirectory = context.filesDir.resolve("meetings").resolve(meeting.id).resolve("segments")

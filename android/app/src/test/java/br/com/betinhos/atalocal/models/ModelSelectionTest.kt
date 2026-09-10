@@ -19,4 +19,16 @@ class ModelSelectionTest {
     @Test fun `retorna nulo sem whisper valido`() {
         assertNull(selectWhisperModel(emptyList()))
     }
+
+    @Test fun `prioriza modelo padrão instalado`() {
+        val first = File.createTempFile("whisper-first", ".bin")
+        val preferred = File.createTempFile("whisper-preferred", ".bin")
+        try {
+            val models = listOf(
+                ModelInstallEntity("first", "whisper", "1", first.path, 1, "hash"),
+                ModelInstallEntity("preferred", "whisper", "1", preferred.path, 1, "hash")
+            )
+            assertEquals(preferred.absolutePath, selectWhisperModel(models, "preferred"))
+        } finally { first.delete(); preferred.delete() }
+    }
 }

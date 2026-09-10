@@ -71,7 +71,8 @@ class PipelineWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             }
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.TRANSCRIBED, 1f, "complete"))
             val models = database.modelInstallDao().observeAll().first()
-            val llamaPath = selectModel(models, "llm")
+            val preferredLlm = applicationContext.getSharedPreferences("atalocal.settings", Context.MODE_PRIVATE).getString("default_llm_model", null)
+            val llamaPath = selectModel(models, "llm", preferredLlm)
                 ?: return fail(database, meetingId, "Modelo LLM não instalado")
             meetingDao.updateStatusClearingError(meetingId, MeetingStatus.GENERATING)
             database.processingJobDao().upsert(ProcessingJobEntity(meetingId, MeetingStatus.GENERATING, 0f, "summary"))

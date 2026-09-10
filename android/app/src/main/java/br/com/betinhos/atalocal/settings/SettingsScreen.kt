@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import br.com.betinhos.atalocal.data.ModelInstallDao
 
 private const val PREFS = "atalocal.settings"
 private const val KEY_LANGUAGE = "transcription_language"
@@ -14,10 +15,12 @@ private const val KEY_AUTO_PROCESS = "auto_process"
 private const val KEY_RETENTION_DAYS = "retention_days"
 private const val KEY_TRANSCRIPT_RETENTION_DAYS = "retention_transcripts_days"
 private const val KEY_MINUTES_RETENTION_DAYS = "retention_minutes_days"
+private const val KEY_DEFAULT_WHISPER = "default_whisper_model"
+private const val KEY_DEFAULT_LLM = "default_llm_model"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(modelDao: ModelInstallDao, onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     var language by remember { mutableStateOf(prefs.getString(KEY_LANGUAGE, "pt") ?: "pt") }
@@ -25,6 +28,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     var retentionDays by remember { mutableIntStateOf(prefs.getInt(KEY_RETENTION_DAYS, 30)) }
     var transcriptRetentionDays by remember { mutableIntStateOf(prefs.getInt(KEY_TRANSCRIPT_RETENTION_DAYS, 180)) }
     var minutesRetentionDays by remember { mutableIntStateOf(prefs.getInt(KEY_MINUTES_RETENTION_DAYS, 365)) }
+    var defaultWhisper by remember { mutableStateOf(prefs.getString(KEY_DEFAULT_WHISPER, null)) }
+    var defaultLlm by remember { mutableStateOf(prefs.getString(KEY_DEFAULT_LLM, null)) }
+    val installed by modelDao.observeAll().collectAsState(initial = emptyList())
     fun save(key: String, value: Any) = prefs.edit().apply {
         when (value) { is String -> putString(key, value); is Boolean -> putBoolean(key, value); is Int -> putInt(key, value) }
     }.apply()
@@ -35,6 +41,18 @@ fun SettingsScreen(onBack: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("pt" to "Português", "auto" to "Detectar").forEach { (value, label) ->
                     FilterChip(selected = language == value, onClick = { language = value; save(KEY_LANGUAGE, value) }, label = { Text(label) })
+                }
+            }
+            Text("Modelo Whisper padrão")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                installed.filter { it.kind == "whisper" }.forEach { model ->
+                    FilterChip(selected = defaultWhisper == model.id, onClick = { defaultWhisper = model.id; save(KEY_DEFAULT_WHISPER, model.id) }, label = { Text(model.id.substringBefore(".bin")) })
+                }
+            }
+            Text("Modelo de ata padrão")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                installed.filter { it.kind == "llm" }.forEach { model ->
+                    FilterChip(selected = defaultLlm == model.id, onClick = { defaultLlm = model.id; save(KEY_DEFAULT_LLM, model.id) }, label = { Text(model.id.substringBefore(".gguf")) })
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

@@ -89,7 +89,8 @@ class MainActivity : ComponentActivity() {
             val id = intent.getStringExtra(br.com.betinhos.atalocal.audio.RecordingService.EXTRA_MEETING_ID) ?: return
             if (getSharedPreferences("atalocal.settings", MODE_PRIVATE).getBoolean("auto_process", true)) {
                 lifecycleScope.launch {
-                    val modelPath = selectWhisperModel(modelInstallDao.observeAll().first())
+                    val preferredWhisper = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getString("default_whisper_model", null)
+                    val modelPath = selectWhisperModel(modelInstallDao.observeAll().first(), preferredWhisper)
                     val language = getSharedPreferences("atalocal.settings", MODE_PRIVATE).getString("transcription_language", "pt") ?: "pt"
                     PipelineScheduler.enqueue(this@MainActivity, id, modelPath, language)
                 }
@@ -144,7 +145,7 @@ class MainActivity : ComponentActivity() {
                 if (recordingUiMeetingId != null) RecordingScreen(recordingUiStartedAt, microphoneLevel, ::togglePause, ::stopRecording)
                 else if (detailMeetingId != null) MeetingDetailScreen(database, detailMeetingId, onBack = { selectedMeeting = null; openMeetingAfterStop = null })
                 else if (showDiagnostics) DiagnosticsScreen(database.modelInstallDao(), meetingDao, onBack = { showDiagnostics = false })
-                else if (showSettings) SettingsScreen(onBack = { showSettings = false })
+                else if (showSettings) SettingsScreen(database.modelInstallDao(), onBack = { showSettings = false })
                 else HomeScreen(database, meetingDao, database.modelInstallDao(), onStartRecording = ::requestRecording, onStopRecording = ::stopRecording, onTogglePause = ::togglePause, onOpenMeeting = { selectedMeeting = it }, onOpenDiagnostics = { showDiagnostics = true }, onOpenSettings = { showSettings = true })
             }
         }
