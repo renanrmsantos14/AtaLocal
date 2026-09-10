@@ -61,7 +61,7 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
                         Text(when (model?.status) {
                             "DOWNLOADING" -> "Download em andamento"
                             "FAILED" -> "Falha: ${model?.error ?: "tente novamente"}"
-                            "INSTALLED" -> "Instalado"
+                            "INSTALLED" -> if (isUsableModel(requireNotNull(model))) "Instalado" else "Arquivo inválido — baixe novamente"
                             else -> "Não instalado"
                         })
                         if (model?.status == "DOWNLOADING" && downloading == spec.id) {
