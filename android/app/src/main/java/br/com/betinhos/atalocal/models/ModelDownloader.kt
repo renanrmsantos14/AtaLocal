@@ -7,12 +7,15 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 class ModelDownloader(private val directory: File) {
     suspend fun download(spec: ModelSpec, onProgress: (Long, Long) -> Unit = { _, _ -> }): File = withContext(Dispatchers.IO) {
         directory.mkdirs()
         val target = File(directory, spec.id)
         val partial = File(directory, "${spec.id}.download")
+        if (partial.length() > spec.sizeBytes) partial.delete()
         var downloaded = if (partial.isFile) partial.length() else 0L
         val connection = (URL(spec.url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
@@ -20,6 +23,9 @@ class ModelDownloader(private val directory: File) {
             if (downloaded > 0) setRequestProperty("Range", "bytes=$downloaded-")
         }
         try {
+            check(connection.responseCode in 200..299) {
+                "Servidor não entregou ${spec.id} (HTTP ${connection.responseCode})"
+            }
             if (downloaded > 0 && connection.responseCode != HttpURLConnection.HTTP_PARTIAL) {
                 partial.delete()
                 downloaded = 0
@@ -40,10 +46,22 @@ class ModelDownloader(private val directory: File) {
         } finally {
             connection.disconnect()
         }
-        check(downloaded == spec.sizeBytes) { "Tamanho inválido para ${spec.id}: $downloaded" }
-        check(sha256(partial) == spec.sha256.lowercase()) { "SHA-256 inválido para ${spec.id}" }
-        check(partial.renameTo(target)) { "Não foi possível instalar ${spec.id}" }
+        validateDownloadedFile(partial, spec)
+        installAtomically(partial, target)
         target
+    }
+
+    internal fun validateDownloadedFile(file: File, spec: ModelSpec) {
+        check(file.length() == spec.sizeBytes) { "Tamanho inválido para ${spec.id}: ${file.length()}" }
+        check(sha256(file) == spec.sha256.lowercase()) { "SHA-256 inválido para ${spec.id}" }
+    }
+
+    internal fun installAtomically(partial: File, target: File) {
+        try {
+            Files.move(partial.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            Files.move(partial.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
     }
 
     private fun sha256(file: File): String {
