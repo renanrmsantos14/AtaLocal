@@ -45,3 +45,5 @@ src-tauri/*.key
 android/.gradle/
 android/local.properties
 android/build/
+android/app/build/
+android/app/.cxx/

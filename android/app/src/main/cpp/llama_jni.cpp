@@ -17,7 +17,6 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
     }
     llama_context_params context_params = llama_context_default_params();
     context_params.n_ctx = 4096;
-    context_params.n_predict = max_tokens;
     llama_context *context = llama_init_from_model(loaded, context_params);
     if (!context) {
         llama_model_free(loaded);
@@ -33,7 +32,7 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
     llama_batch batch = llama_batch_get_one(tokens.data(), static_cast<int32_t>(tokens.size()));
     if (llama_decode(context, batch) == 0) {
         for (int i = 0; i < max_tokens; ++i) {
-            const llama_token token = llama_sampler_sample(sampler, context, -1);
+            llama_token token = llama_sampler_sample(sampler, context, -1);
             if (llama_vocab_is_eog(vocab, token)) break;
             char piece[256];
             const int length = llama_token_to_piece(vocab, token, piece, sizeof(piece), 0, true);
