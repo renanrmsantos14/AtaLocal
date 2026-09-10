@@ -3,6 +3,7 @@ package br.com.betinhos.atalocal
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,11 +27,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.room.Room
+import br.com.betinhos.atalocal.data.AtaLocalDatabase
+import br.com.betinhos.atalocal.data.MeetingDao
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { AtaLocalTheme { HomeScreen() } }
+        val database = Room.databaseBuilder(applicationContext, AtaLocalDatabase::class.java, "atalocal.db").build()
+        setContent { AtaLocalTheme { HomeScreen(database.meetingDao()) } }
     }
 }
 
@@ -40,11 +46,12 @@ private fun AtaLocalTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun HomeScreen() {
+private fun HomeScreen(dao: MeetingDao) {
+    val meetings by dao.observeAll().collectAsState(initial = emptyList())
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var dialogOpen by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
-    var createdTitle by remember { mutableStateOf<String?>(null) }
 
     Scaffold(topBar = { TopAppBar(title = { Text("AtaLocal") }) }) { insets ->
         LazyColumn(
@@ -67,9 +74,9 @@ private fun HomeScreen() {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(createdTitle ?: "Nenhuma reunião ainda", style = MaterialTheme.typography.titleMedium)
-                        Text(if (createdTitle == null) "Sua primeira gravação ficará armazenada somente neste aparelho."
-                        else "Reunião criada como rascunho. A gravação será adicionada na próxima etapa.")
+                        Text(meetings.firstOrNull()?.title ?: "Nenhuma reunião ainda", style = MaterialTheme.typography.titleMedium)
+                        Text(if (meetings.isEmpty()) "Sua primeira gravação ficará armazenada somente neste aparelho."
+                        else "${meetings.size} reunião(ões) armazenada(s) neste aparelho.")
                     }
                 }
             }
@@ -91,7 +98,12 @@ private fun HomeScreen() {
             confirmButton = {
                 TextButton(onClick = {
                     runCatching { br.com.betinhos.atalocal.domain.createMeeting(title, note) }
-                        .onSuccess { createdTitle = it.title; dialogOpen = false; title = ""; note = "" }
+                        .onSuccess { meeting ->
+                            scope.launch { dao.upsert(meeting) }
+                            dialogOpen = false
+                            title = ""
+                            note = ""
+                        }
                 }, enabled = title.isNotBlank()) { Text("Criar") }
             },
             dismissButton = { TextButton(onClick = { dialogOpen = false }) { Text("Cancelar") } }
