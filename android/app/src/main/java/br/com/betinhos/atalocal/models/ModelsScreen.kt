@@ -30,11 +30,13 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var downloading by remember { mutableStateOf<String?>(null) }
     var progress by remember { mutableStateOf(0L to 0L) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Button(onClick = onBack) { Text("Voltar") }
         Text("Modelos locais", style = MaterialTheme.typography.headlineMedium)
         Text("Baixados no armazenamento privado e verificados por SHA-256.")
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(AndroidModelCatalog.all) { spec ->
                 val model = installed.find { it.id == spec.id }
@@ -44,12 +46,13 @@ fun ModelsScreen(dao: ModelInstallDao, onBack: () -> Unit) {
                         Text("${spec.kind} · ${spec.sizeBytes / 1_000_000} MB")
                         Text(if (model == null) "Não instalado" else "Instalado")
                         Button(enabled = downloading == null, onClick = {
+                            error = null
                             downloading = spec.id
                             scope.launch {
                                 runCatching {
                                     val file = ModelDownloader(context.filesDir.resolve("models")).download(spec) { done, total -> progress = done to total }
                                     dao.upsert(br.com.betinhos.atalocal.data.ModelInstallEntity(spec.id, spec.kind, spec.version, file.path, spec.sizeBytes, spec.sha256))
-                                }
+                                }.onFailure { error = it.message ?: "Falha ao baixar ${spec.id}" }
                                 downloading = null
                             }
                         }) { Text(if (downloading == spec.id) "Baixando ${progress.first}/${progress.second}" else "Baixar / atualizar") }

@@ -1,6 +1,7 @@
 package br.com.betinhos.atalocal
 
 import android.os.Bundle
+import android.os.Build
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.AlertDialog
@@ -54,12 +56,18 @@ class MainActivity : ComponentActivity() {
     ) { granted ->
         if (granted) startRecordingService()
     }
+    private val notificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val database = Room.databaseBuilder(applicationContext, AtaLocalDatabase::class.java, "atalocal.db").build()
         meetingDao = database.meetingDao()
         modelInstallDao = database.modelInstallDao()
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         setContent {
             AtaLocalTheme {
                 var selectedMeeting by remember { mutableStateOf<String?>(null) }
@@ -143,18 +151,19 @@ private fun HomeScreen(dao: MeetingDao, modelDao: ModelInstallDao, onStartRecord
                 ) { Text("Nova reunião") }
                 TextButton(onClick = { showModels = true }) { Text("Gerenciar modelos") }
             }
-            item {
+            items(meetings, key = { it.id }) { meeting ->
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { meetings.firstOrNull()?.id?.let(onOpenMeeting) }) { Text(meetings.firstOrNull()?.title ?: "Nenhuma reunião ainda", style = MaterialTheme.typography.titleMedium) }
-                        Text(if (meetings.isEmpty()) "Sua primeira gravação ficará armazenada somente neste aparelho."
-                        else "${meetings.size} reunião(ões) armazenada(s) neste aparelho.")
-                        if (meetings.isNotEmpty()) {
+                        TextButton(onClick = { onOpenMeeting(meeting.id) }) { Text(meeting.title, style = MaterialTheme.typography.titleMedium) }
+                        Text("${meeting.status.name.lowercase()} · ${meeting.durationSeconds}s")
+                        meeting.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        if (meeting.status == br.com.betinhos.atalocal.domain.MeetingStatus.RECORDING) {
                             TextButton(onClick = onStopRecording) { Text("Parar gravação") }
                         }
                     }
                 }
             }
+            if (meetings.isEmpty()) item { Text("Sua primeira gravação ficará armazenada somente neste aparelho.") }
         }
     }
 
