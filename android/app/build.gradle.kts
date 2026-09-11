@@ -24,8 +24,8 @@ android {
         applicationId = "br.com.betinhos.atalocal"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "0.4.18"
+        versionCode = 19
+        versionName = "0.4.19"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
     }

@@ -47,6 +47,19 @@ class MinutesParserTest {
         assertEquals("Ata pronta.", minutes.summary)
     }
 
+    @Test fun acceptsValidEmptyMinutesWithoutClaimingInvalidJson() {
+        val minutes = parseMinutesOrFallback(
+            """```json
+            {"resumo":"","participantes":[],"assuntos":[],"decisoes":[],"tarefas":[{"descricao":"","responsavel":null,"prazo":null,"evidencia":"[0ms] [música]"}],"pendencias":[],"alertas":[]}
+            ```""".trimIndent(),
+            "[0ms] [música]"
+        )
+
+        assertEquals("A transcrição não contém conteúdo suficiente para resumir.", minutes.summary)
+        assertTrue(minutes.tasks.isEmpty())
+        assertTrue(minutes.alerts.none { it.contains("JSON inválido") })
+    }
+
     @Test fun removesParticipantsAndTasksWithoutTranscriptEvidence() {
         val minutes = parseMinutesOrFallback(
             """{"resumo":"x","participantes":["Pessoa inventada","Renan"],"assuntos":[],"decisoes":[],"tarefas":[{"descricao":"inventada","responsavel":null,"prazo":null,"evidencia":"frase que não existe"},{"descricao":"Enviar contrato","responsavel":null,"prazo":null,"evidencia":"enviar contrato"}],"pendencias":[],"alertas":[]}""",

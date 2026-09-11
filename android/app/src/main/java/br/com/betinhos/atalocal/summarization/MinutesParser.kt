@@ -39,15 +39,27 @@ private fun Minutes.validateAgainst(transcript: String): Minutes {
 fun parseMinutes(raw: String): Minutes {
     val json = JSONObject(extractJsonObject(raw))
     fun strings(key: String) = json.optJSONArray(key).toStrings()
+    val participants = strings("participantes")
+    val topics = strings("assuntos")
+    val decisions = strings("decisoes")
     val tasks = json.optJSONArray("tarefas").toTasks()
+    val pending = strings("pendencias")
+    val alerts = strings("alertas")
+    val summary = json.optString("resumo").trim().ifEmpty {
+        if (participants.isEmpty() && topics.isEmpty() && decisions.isEmpty() && tasks.isEmpty() && pending.isEmpty()) {
+            "A transcrição não contém conteúdo suficiente para resumir."
+        } else {
+            "O modelo não forneceu um resumo; revise os itens estruturados abaixo."
+        }
+    }
     return Minutes(
-        summary = json.optString("resumo").trim().also { require(it.isNotEmpty()) { "Resumo ausente" } },
-        participants = strings("participantes"),
-        topics = strings("assuntos"),
-        decisions = strings("decisoes"),
+        summary = summary,
+        participants = participants,
+        topics = topics,
+        decisions = decisions,
         tasks = tasks,
-        pending = strings("pendencias"),
-        alerts = strings("alertas")
+        pending = pending,
+        alerts = alerts
     )
 }
 
@@ -62,9 +74,11 @@ private fun extractJsonObject(raw: String): String {
 
 private fun JSONArray?.toStrings(): List<String> = if (this == null) emptyList() else List(length()) { getString(it).trim() }.filter(String::isNotEmpty)
 
-private fun JSONArray?.toTasks(): List<MinuteTask> = if (this == null) emptyList() else List(length()) {
+private fun JSONArray?.toTasks(): List<MinuteTask> = if (this == null) emptyList() else (0 until length()).mapNotNull {
     val task = getJSONObject(it)
+    val description = task.optString("descricao").trim()
+    if (description.isEmpty()) return@mapNotNull null
     val evidence = task.optString("evidencia").trim()
     require(evidence.isNotEmpty()) { "Tarefa sem evidência" }
-    MinuteTask(task.optString("descricao").trim(), task.optString("responsavel").takeUnless { it.isBlank() }, task.optString("prazo").takeUnless { it.isBlank() }, evidence)
+    MinuteTask(description, task.optString("responsavel").takeUnless { it.isBlank() }, task.optString("prazo").takeUnless { it.isBlank() }, evidence)
 }
