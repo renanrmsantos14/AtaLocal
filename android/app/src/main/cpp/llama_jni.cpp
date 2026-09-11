@@ -113,7 +113,8 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
     }
     const std::string formatted_prompt = format_chat_prompt(loaded, prompt_utf);
     std::string output;
-    const int32_t required_tokens = llama_tokenize(vocab, formatted_prompt.c_str(), -1, nullptr, 0, true, true);
+    const auto prompt_length = static_cast<int32_t>(formatted_prompt.size());
+    const int32_t required_tokens = llama_tokenize(vocab, formatted_prompt.c_str(), prompt_length, nullptr, 0, true, true);
     if (required_tokens >= 0) {
         llama_sampler_free(sampler);
         llama_free(context);
@@ -124,7 +125,7 @@ Java_br_com_betinhos_atalocal_summarization_LlamaNative_generate(
         return nullptr;
     }
     std::vector<llama_token> tokens(static_cast<size_t>(-required_tokens));
-    const int32_t tokenized = llama_tokenize(vocab, formatted_prompt.c_str(), -1, tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
+    const int32_t tokenized = llama_tokenize(vocab, formatted_prompt.c_str(), prompt_length, tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
     if (tokenized < 0) {
         llama_sampler_free(sampler);
         llama_free(context);
