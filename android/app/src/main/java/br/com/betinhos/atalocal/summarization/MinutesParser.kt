@@ -37,7 +37,7 @@ private fun Minutes.validateAgainst(transcript: String): Minutes {
 }
 
 fun parseMinutes(raw: String): Minutes {
-    val json = JSONObject(raw)
+    val json = JSONObject(extractJsonObject(raw))
     fun strings(key: String) = json.optJSONArray(key).toStrings()
     val tasks = json.optJSONArray("tarefas").toTasks()
     return Minutes(
@@ -49,6 +49,15 @@ fun parseMinutes(raw: String): Minutes {
         pending = strings("pendencias"),
         alerts = strings("alertas")
     )
+}
+
+private fun extractJsonObject(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) return trimmed
+    val start = trimmed.indexOf('{')
+    val end = trimmed.lastIndexOf('}')
+    require(start >= 0 && end > start) { "Objeto JSON ausente" }
+    return trimmed.substring(start, end + 1)
 }
 
 private fun JSONArray?.toStrings(): List<String> = if (this == null) emptyList() else List(length()) { getString(it).trim() }.filter(String::isNotEmpty)
