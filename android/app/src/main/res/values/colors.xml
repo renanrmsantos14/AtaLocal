@@ -1,0 +1,7 @@
+<resources>
+    <color name="icon_background">#102A43</color>
+    <color name="icon_paper">#F7FAFC</color>
+    <color name="icon_paper_fold">#DCE8F2</color>
+    <color name="icon_ink">#102A43</color>
+    <color name="icon_accent">#FF6B5F</color>
+</resources>

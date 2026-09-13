@@ -60,6 +60,25 @@ pub struct SummaryEntry {
     pub timestamp: Option<String>,
 }
 
+/// Modelos menores às vezes simplificam entradas sem horário para strings.
+/// Aceitamos esse formato legado sem relaxar o contrato persistido do app.
+fn summary_entries<'de, D>(d: D) -> Result<Vec<SummaryEntry>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values = Option::<Vec<serde_json::Value>>::deserialize(d)?.unwrap_or_default();
+    values
+        .into_iter()
+        .map(|value| match value {
+            serde_json::Value::String(text) => Ok(SummaryEntry {
+                text,
+                timestamp: None,
+            }),
+            value => serde_json::from_value(value).map_err(serde::de::Error::custom),
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ActionItemDraft {
     #[serde(default, deserialize_with = "null_to_default")]
@@ -77,13 +96,13 @@ pub struct MeetingMinutes {
     pub executive_summary: String,
     #[serde(default, deserialize_with = "null_to_default")]
     pub topics: Vec<String>,
-    #[serde(default, deserialize_with = "null_to_default")]
+    #[serde(default, deserialize_with = "summary_entries")]
     pub decisions: Vec<SummaryEntry>,
     #[serde(default, deserialize_with = "null_to_default")]
     pub action_items: Vec<ActionItemDraft>,
-    #[serde(default, deserialize_with = "null_to_default")]
+    #[serde(default, deserialize_with = "summary_entries")]
     pub pending: Vec<SummaryEntry>,
-    #[serde(default, deserialize_with = "null_to_default")]
+    #[serde(default, deserialize_with = "summary_entries")]
     pub divergences: Vec<SummaryEntry>,
     #[serde(default, deserialize_with = "null_to_default")]
     pub next_steps: Vec<String>,
@@ -307,6 +326,14 @@ mod tests {
         assert_eq!(m.executive_summary, "Reuniao sobre o projeto X.");
         assert_eq!(m.topics, vec!["orcamento"]);
         assert_eq!(m.next_steps, vec!["marcar follow-up"]);
+    }
+
+    #[test]
+    fn aceita_entradas_sem_timestamp_como_string() {
+        let raw = r#"{"pending":["Definir fornecedor"],"decisions":[{"text":"Aprovado","timestamp":"00:00:12"}]}"#;
+        let m = parse_minutes(raw).unwrap();
+        assert_eq!(m.pending[0].text, "Definir fornecedor");
+        assert_eq!(m.decisions[0].timestamp.as_deref(), Some("00:00:12"));
     }
 
     #[test]
